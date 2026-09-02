@@ -1,0 +1,48 @@
+import type { AiProvider } from '../providers/ai';
+import type { ResourceProvider } from '../providers/resources';
+import type { Repositories } from '../repositories/types';
+import { createContentService, type ContentService } from './content.service';
+import { createOnboardingService, type OnboardingService } from './onboarding.service';
+import { createPathService, type PathService } from './path.service';
+import { createResourceCurator } from './resource-curator.service';
+import { createTechniqueService, type TechniqueService } from './technique.service';
+
+export interface Services {
+  onboarding: OnboardingService;
+  paths: PathService;
+  techniques: TechniqueService;
+  content: ContentService;
+}
+
+export function createServices(deps: {
+  ai: AiProvider;
+  resources: ResourceProvider;
+  repositories: Repositories;
+}): Services {
+  const curator = createResourceCurator({ ai: deps.ai, resources: deps.resources });
+
+  const paths = createPathService({
+    ai: deps.ai,
+    curator,
+    repositories: deps.repositories,
+  });
+
+  const techniques = createTechniqueService({
+    ai: deps.ai,
+    curator,
+    repositories: deps.repositories,
+  });
+
+  const content = createContentService({
+    ai: deps.ai,
+    techniques,
+    repositories: deps.repositories,
+  });
+
+  return {
+    onboarding: createOnboardingService({ ai: deps.ai }),
+    paths,
+    techniques,
+    content,
+  };
+}
