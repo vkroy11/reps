@@ -1,8 +1,25 @@
 import { Router } from 'express';
+import { createIdentityMiddleware } from '../middleware/identity';
+import type { Repositories } from '../repositories/types';
+import type { Services } from '../services';
 import { healthRouter } from './health.route';
+import { createOnboardingRouter } from './onboarding.route';
+import { createPathsRouter } from './paths.route';
+import { createTechniquesRouter } from './techniques.route';
 
-export const apiRouter: Router = Router();
+export function createApiRouter(deps: {
+  services: Services;
+  repositories: Repositories;
+}): Router {
+  const router = Router();
 
-apiRouter.use('/health', healthRouter);
+  // Health is deliberately outside identity so uptime checks need no headers.
+  router.use('/health', healthRouter);
 
-// Feature routers mount here: /paths, /techniques, /notes, /auth, /sync
+  router.use(createIdentityMiddleware(deps.repositories.users));
+  router.use('/onboarding', createOnboardingRouter(deps.services));
+  router.use('/paths', createPathsRouter(deps.services));
+  router.use('/techniques', createTechniquesRouter(deps.services));
+
+  return router;
+}
