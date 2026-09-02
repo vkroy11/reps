@@ -13,5 +13,6 @@ export * from './Skeleton';
 export * from './ProgressBar';
 export * from './AnswerCard';
 export * from './PipLogo';
+export * from './PipMascot';
 export * from './hooks/useReduceMotion';
 export * from './hooks/useBreakpoint';
