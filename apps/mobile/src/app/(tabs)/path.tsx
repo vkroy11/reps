@@ -1,17 +1,23 @@
 import type { Technique, TechniqueStatus } from '@reps/core';
-import { Card, PipLogo, Skeleton, Text, color, radius, space } from '@reps/ui';
-import { StyleSheet, ScrollView, View } from 'react-native';
+import { PipLogo, Skeleton, Text, color, radius, space } from '@reps/ui';
+import Flag from 'lucide-react-native/icons/flag';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path as SvgPath } from 'react-native-svg';
 import { usePath, usePathList } from '../../features/paths/usePaths';
 
 /**
- * The path, as an ordered list of techniques with their state.
+ * The path as a single vertical spine, the way the mockup draws it: nodes on a
+ * continuous rail, alternating side to side for rhythm, lime behind you and
+ * slate ahead.
  *
- * Phase 5 turns this into the designed vertical spine with mastery rings and
- * the start sheet; this is the honest interim - every node, its real status,
- * and why it matters.
+ * Deliberately not a branching graph - the moodboard capture of roadmap.sh on a
+ * phone showed a wide graph collapsing to unreadable labels. Phase 5 adds the
+ * start sheet and node animation on top of this.
  */
+const NODE = 54;
+const RAIL_WIDTH = 4;
+
 export default function PathScreen() {
   const insets = useSafeAreaInsets();
   const { focusedId, paths, loading: listLoading } = usePathList();
@@ -24,29 +30,32 @@ export default function PathScreen() {
       style={styles.screen}
       contentContainerStyle={[
         styles.content,
-        { paddingTop: insets.top + space.base, paddingBottom: insets.bottom + space.xl },
+        { paddingTop: insets.top + space.base, paddingBottom: insets.bottom + space.xxl },
       ]}
     >
       <View style={styles.header}>
-        <Text variant="title">{summary?.skill ?? 'Your path'}</Text>
+        {/* flex + minWidth:0 lets a long skill ellipsise instead of shoving the count off screen. */}
+        <Text variant="title" style={styles.title} numberOfLines={2}>
+          {summary?.skill ?? 'Your path'}
+        </Text>
         {summary ? (
-          <Text variant="caption" tone="textSecondary">
+          <Text variant="caption" tone="textSecondary" style={styles.count}>
             {summary.completedCount} of {summary.techniqueCount}
           </Text>
         ) : null}
       </View>
 
       {summary ? (
-        <Text variant="caption" tone="textSecondary">
+        <Text variant="caption" tone="textSecondary" numberOfLines={2} style={styles.goal}>
           {summary.goal}
         </Text>
       ) : null}
 
       {listLoading || loading ? (
         <View style={styles.stack}>
-          <Skeleton height={70} />
-          <Skeleton height={70} delay={80} />
-          <Skeleton height={70} delay={160} />
+          <Skeleton height={64} />
+          <Skeleton height={64} delay={80} />
+          <Skeleton height={64} delay={160} />
         </View>
       ) : null}
 
@@ -59,52 +68,82 @@ export default function PathScreen() {
         </View>
       ) : null}
 
-      {path?.techniques.map((technique, index) => (
-        <TechniqueRow
-          key={technique.id}
-          technique={technique}
-          isLast={index === path.techniques.length - 1}
-        />
-      ))}
+      {path ? (
+        <View style={styles.spine}>
+          {path.techniques.map((technique, index) => (
+            <Step
+              key={technique.id}
+              technique={technique}
+              alignRight={index % 2 === 1}
+              isFirst={index === 0}
+              isLast={index === path.techniques.length - 1}
+              previousDone={
+                index > 0 && path.techniques[index - 1]?.status === 'completed'
+              }
+            />
+          ))}
+          <View style={styles.finish}>
+            <Flag size={20} color={color.iconDecorative} strokeWidth={2.4} />
+            <Text variant="caption" tone="textSecondary">
+              {path.goal}
+            </Text>
+          </View>
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
 
-function TechniqueRow({ technique, isLast }: { technique: Technique; isLast: boolean }) {
-  const done = technique.status === 'completed';
+function Step({
+  technique,
+  alignRight,
+  isFirst,
+  previousDone,
+}: {
+  technique: Technique;
+  alignRight: boolean;
+  isFirst: boolean;
+  isLast: boolean;
+  previousDone: boolean;
+}) {
   const active = technique.status === 'active';
+  const done = technique.status === 'completed';
   const skipped = technique.status === 'skipped';
 
   return (
-    <View style={styles.row}>
-      <View style={styles.rail}>
-        <Node status={technique.status} />
-        {/* The trail is lime behind you and slate ahead. */}
-        {!isLast ? (
-          <View
-            style={[styles.trail, { backgroundColor: done ? color.progress : color.surfaceLocked }]}
-          />
-        ) : null}
-      </View>
+    <View style={[styles.step, alignRight && styles.stepRight]}>
+      {/* The rail segment above this node, coloured by what came before it. */}
+      {!isFirst ? (
+        <View
+          style={[
+            styles.rail,
+            alignRight ? styles.railRight : styles.railLeft,
+            { backgroundColor: previousDone ? color.progress : color.surfaceLocked },
+          ]}
+        />
+      ) : null}
 
-      <Card
-        tone={active ? 'brand' : done ? 'progress' : 'default'}
-        style={[styles.card, skipped && styles.skipped]}
-      >
+      <Node status={technique.status} />
+
+      <View style={styles.stepText}>
         <Text
           variant="label"
-          tone={active ? 'brandPressed' : done ? 'progressText' : 'textPrimary'}
+          tone={active ? 'brand' : done ? 'progressText' : skipped ? 'textSecondary' : 'textPrimary'}
+          numberOfLines={2}
           style={skipped ? styles.struck : undefined}
         >
-          {technique.order + 1}. {technique.title}
+          {technique.title}
         </Text>
-        <Text variant="caption" tone="textSecondary" style={styles.meta}>
-          {technique.modality.replace(/_/g, ' ')} · {technique.estimatedMinutes} min
-          {technique.resources.length > 0 ? ` · ${technique.resources.length} resource` : ''}
-          {skipped ? ' · not for me' : ''}
-        </Text>
-        {active ? <Text variant="caption" tone="brandPressed">You are here</Text> : null}
-      </Card>
+        {active ? (
+          <Text variant="caption" tone="brand">
+            You are here
+          </Text>
+        ) : (
+          <Text variant="caption" tone="textSecondary" numberOfLines={1}>
+            {skipped ? 'Not for me' : `${technique.estimatedMinutes} min`}
+          </Text>
+        )}
+      </View>
     </View>
   );
 }
@@ -118,36 +157,44 @@ function Node({ status }: { status: TechniqueStatus }) {
         : color.surfaceLocked;
 
   return (
-    <Svg width={34} height={34} viewBox="0 0 34 34">
-      <Circle cx={17} cy={17} r={17} fill={fill} />
-      {status === 'completed' ? (
-        <SvgPath
-          d="M10 17.5l4.5 4.5L24 12.5"
-          stroke="#FFFFFF"
-          strokeWidth={3}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-      ) : null}
-      {status === 'active' ? <SvgPath d="M14 11.5v11l9-5.5z" fill="#FFFFFF" /> : null}
-      {status === 'locked' ? (
-        <SvgPath
-          d="M12.5 16.5h9v6h-9zM14.5 16.5v-2.5a2.5 2.5 0 0 1 5 0v2.5"
-          stroke={color.iconDecorative}
-          strokeWidth={1.8}
-          fill="none"
-        />
-      ) : null}
-      {status === 'skipped' ? (
-        <SvgPath
-          d="M12 12l10 10M22 12l-10 10"
-          stroke={color.iconDecorative}
-          strokeWidth={2.4}
-          strokeLinecap="round"
-        />
-      ) : null}
-    </Svg>
+    <View style={styles.node}>
+      <Svg width={NODE} height={NODE} viewBox="0 0 54 54">
+        {/* The current node wears a soft halo so "you are here" reads at a glance. */}
+        {status === 'active' ? (
+          <Circle cx={27} cy={27} r={26} stroke={color.brandSoft} strokeWidth={4} fill="none" />
+        ) : null}
+        <Circle cx={27} cy={27} r={status === 'active' ? 23 : 24} fill={fill} />
+
+        {status === 'completed' ? (
+          <SvgPath
+            d="M17 27.5l6.5 6.5L38 20"
+            stroke="#FFFFFF"
+            strokeWidth={4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        ) : null}
+        {status === 'active' ? <SvgPath d="M22 18v18l14-9z" fill="#FFFFFF" /> : null}
+        {status === 'locked' ? (
+          <SvgPath
+            d="M20 26h14v10H20zM23 26v-4a4 4 0 0 1 8 0v4"
+            stroke={color.iconDecorative}
+            strokeWidth={2.4}
+            strokeLinejoin="round"
+            fill="none"
+          />
+        ) : null}
+        {status === 'skipped' ? (
+          <SvgPath
+            d="M19 19l16 16M35 19L19 35"
+            stroke={color.iconDecorative}
+            strokeWidth={3}
+            strokeLinecap="round"
+          />
+        ) : null}
+      </Svg>
+    </View>
   );
 }
 
@@ -155,19 +202,36 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.surfacePage },
   content: {
     paddingHorizontal: space.base,
-    gap: space.sm,
     width: '100%',
     maxWidth: 640,
     alignSelf: 'center',
   },
-  header: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  stack: { gap: space.sm, marginTop: space.sm },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md },
+  title: { flex: 1, minWidth: 0 },
+  count: { flexShrink: 0, paddingTop: 6 },
+  goal: { marginTop: space.xs, marginBottom: space.lg },
+  stack: { gap: space.sm },
   empty: { alignItems: 'center', gap: space.base, paddingTop: space.xxl },
-  row: { flexDirection: 'row', gap: space.md, alignItems: 'flex-start' },
-  rail: { alignItems: 'center', width: 34, paddingTop: space.base },
-  trail: { width: 4, flex: 1, minHeight: space.lg, borderRadius: radius.full, marginTop: 2 },
-  card: { flex: 1, minWidth: 0, marginBottom: space.sm },
-  skipped: { opacity: 0.6 },
+  spine: { paddingLeft: space.sm },
+  step: { flexDirection: 'row', alignItems: 'center', gap: space.base, paddingVertical: space.sm },
+  stepRight: { paddingLeft: space.xl },
+  node: { width: NODE, height: NODE },
+  rail: {
+    position: 'absolute',
+    width: RAIL_WIDTH,
+    top: -space.lg,
+    height: space.xl,
+    borderRadius: radius.full,
+  },
+  railLeft: { left: NODE / 2 - RAIL_WIDTH / 2 },
+  railRight: { left: NODE / 2 - RAIL_WIDTH / 2 + space.xl },
+  stepText: { flex: 1, minWidth: 0, gap: 2 },
   struck: { textDecorationLine: 'line-through' },
-  meta: { marginTop: 2 },
+  finish: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingLeft: NODE / 2 - 10,
+    paddingTop: space.base,
+  },
 });

@@ -103,22 +103,57 @@ describe('TodayScreen', () => {
     const { getByText } = await renderScreen(<TodayScreen />);
 
     expect(getByText('get good at guitar')).toBeOnTheScreen();
-    expect(getByText('1 of 6 techniques')).toBeOnTheScreen();
+    // The count sits beside the bar and must not be pushed away by a long skill.
+    expect(getByText('1/6')).toBeOnTheScreen();
   });
 
-  /** Completed and active techniques must not appear under "Next up". */
-  it('lists only locked techniques as coming next', async () => {
+  /**
+   * Today is the session, not a second copy of the path: it carries the rep,
+   * which the Path tab does not show.
+   */
+  it('leads with the rep to perform', async () => {
+    const { getByText } = await renderScreen(<TodayScreen />);
+
+    expect(getByText('The rep')).toBeOnTheScreen();
+    expect(getByText('G to C, ten clean reps.')).toBeOnTheScreen();
+  });
+
+  /**
+   * Only the immediate next technique is named. Listing the whole tail here
+   * duplicated the Path tab, which is what made this screen feel repetitive.
+   */
+  it('names just the next technique, not the whole tail', async () => {
     const { getByText, queryAllByText } = await renderScreen(<TodayScreen />);
 
-    expect(getByText('Barre chords')).toBeOnTheScreen();
-    expect(getByText('Fingerpicking')).toBeOnTheScreen();
+    expect(getByText('After this: Barre chords')).toBeOnTheScreen();
+    expect(queryAllByText('Fingerpicking')).toHaveLength(0);
     expect(queryAllByText('Open chords')).toHaveLength(0);
   });
 
-  it('names the focused skill in the switcher control', async () => {
+  /**
+   * The skill sits above the progress bar with room to wrap: it can be a whole
+   * sentence like "I want to learn concurrency in Golang".
+   */
+  it('shows the focused skill above the progress bar', async () => {
+    const { getByText, getByTestId } = await renderScreen(<TodayScreen />);
+
+    expect(getByText('guitar')).toBeOnTheScreen();
+    expect(getByTestId('open-switcher')).toBeOnTheScreen();
+  });
+
+  it('keeps a sentence-length skill name on screen with its count', async () => {
+    const long = 'I Want To Learn Concurrency In Golang';
+    mockList = {
+      paths: [summary('path_go', long)],
+      focusedId: 'path_go',
+      error: null,
+      loading: false,
+    };
+
     const { getByText } = await renderScreen(<TodayScreen />);
 
-    expect(getByText('guitar ▾')).toBeOnTheScreen();
+    expect(getByText(long)).toBeOnTheScreen();
+    expect(getByText('1/6')).toBeOnTheScreen();
   });
 
   it('switches focus to another skill', async () => {

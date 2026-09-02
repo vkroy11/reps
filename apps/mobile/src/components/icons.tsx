@@ -1,12 +1,12 @@
 import { color } from '@reps/ui';
-import ChevronLeft from 'lucide-react-native/dist/esm/icons/chevron-left';
-import RotateCcw from 'lucide-react-native/dist/esm/icons/rotate-ccw';
-import WifiOff from 'lucide-react-native/dist/esm/icons/wifi-off';
+import ChevronLeft from 'lucide-react-native/icons/chevron-left';
+import RotateCcw from 'lucide-react-native/icons/rotate-ccw';
+import WifiOff from 'lucide-react-native/icons/wifi-off';
 
 /**
- * Icons are deep-imported one glyph at a time. Lucide ships ~1794 icons and
- * Metro does not tree-shake, so a barrel import costs 1.9 MB for three
- * glyphs - measured, not assumed.
+ * Icons come one glyph at a time from Lucide's supported `icons/*` subpath.
+ * The package ships ~1794 icons and Metro does not tree-shake, so importing
+ * from the barrel costs 1.9 MB for three glyphs - measured, not assumed.
  *
  * Lucide is ISC AND MIT: about 117 icons derive from Feather and carry
  * `Copyright (c) 2013-present Cole Bemis`. Both notices belong in the

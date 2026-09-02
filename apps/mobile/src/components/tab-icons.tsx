@@ -1,10 +1,11 @@
-import Home from 'lucide-react-native/dist/esm/icons/house';
-import Notebook from 'lucide-react-native/dist/esm/icons/notebook-pen';
-import Route from 'lucide-react-native/dist/esm/icons/route';
-import User from 'lucide-react-native/dist/esm/icons/user-round';
+import Home from 'lucide-react-native/icons/house';
+import Notebook from 'lucide-react-native/icons/notebook-pen';
+import Route from 'lucide-react-native/icons/route';
+import User from 'lucide-react-native/icons/user-round';
 
 /**
- * Deep-imported per glyph: the Lucide barrel bundles all ~1794 icons because
- * Metro does not tree-shake, which measured 1.9 MB for three icons.
+ * One glyph per import via Lucide's supported `icons/*` subpath: the barrel
+ * bundles all ~1794 icons because Metro does not tree-shake, which measured
+ * 1.9 MB for three icons.
  */
 export const TabIcon = { Home, Route, Notebook, User };

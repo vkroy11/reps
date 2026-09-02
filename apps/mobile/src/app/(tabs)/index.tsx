@@ -1,27 +1,22 @@
 import { pathProgress } from '@reps/client';
-import type { Technique } from '@reps/core';
-import {
-  Button,
-  Card,
-  PipLogo,
-  ProgressBar,
-  Skeleton,
-  Text,
-  color,
-  space,
-} from '@reps/ui';
+import { Button, Card, PipLogo, ProgressBar, Skeleton, Text, color, space } from '@reps/ui';
 import { useRouter } from 'expo-router';
+import ChevronDown from 'lucide-react-native/icons/chevron-down';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PathSwitcher } from '../../features/paths/PathSwitcher';
+import { StreakChip } from '../../features/paths/StreakChip';
 import { usePath, usePathList } from '../../features/paths/usePaths';
 import { useApp } from '../../providers/app-provider';
 
 /**
- * Today has exactly one job: start today's technique. Everything else on the
- * screen exists to frame that decision - the goal above the bar, and what is
- * coming next below it.
+ * Today is the session, not the path.
+ *
+ * The Path tab already lists every technique, so repeating that here would be
+ * two views of the same thing. Instead this screen carries what you cannot get
+ * from the map: the actual rep to perform, how long it takes, and one button to
+ * begin. What follows is reduced to a single line.
  */
 export default function TodayScreen() {
   const router = useRouter();
@@ -33,30 +28,18 @@ export default function TodayScreen() {
 
   const focusedSummary = paths.find((item) => item.id === focusedId) ?? null;
   const active = path?.techniques.find((technique) => technique.status === 'active') ?? null;
-  const upcoming =
-    path?.techniques.filter((technique) => technique.status === 'locked').slice(0, 3) ?? [];
+  const next = path?.techniques.find((technique) => technique.status === 'locked') ?? null;
 
   return (
     <View style={styles.screen}>
+      {/* One number in the HUD, on the right, and nothing else competing with it. */}
       <View style={[styles.hud, { paddingTop: insets.top + space.sm }]}>
-        <PipLogo size={34} />
+        <PipLogo size={32} />
         <Text variant="heading" style={styles.brand}>
           Reps
         </Text>
         <View style={styles.spacer} />
-        {focusedSummary ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Switch skill"
-            onPress={() => setSwitcherOpen(true)}
-            style={styles.switcher}
-            testID="open-switcher"
-          >
-            <Text variant="caption" tone="brandPressed" numberOfLines={1}>
-              {focusedSummary.skill} ▾
-            </Text>
-          </Pressable>
-        ) : null}
+        <StreakChip days={0} />
       </View>
 
       <ScrollView
@@ -64,9 +47,9 @@ export default function TodayScreen() {
       >
         {listLoading ? (
           <>
-            <Skeleton height={18} width="70%" />
+            <Skeleton height={22} width="80%" />
             <Skeleton height={10} delay={80} />
-            <Skeleton height={150} delay={160} />
+            <Skeleton height={210} delay={160} />
           </>
         ) : null}
 
@@ -97,39 +80,83 @@ export default function TodayScreen() {
 
         {focusedSummary ? (
           <>
-            <Text variant="caption" tone="textSecondary">
+            {/*
+              The skill sits above the progress bar on a full-width row: it can
+              be a whole sentence ("I want to learn concurrency in Golang"), so
+              it needs room to wrap rather than a corner to overflow out of.
+            */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Learning ${focusedSummary.skill}. Switch skill.`}
+              onPress={() => setSwitcherOpen(true)}
+              style={styles.skillRow}
+              testID="open-switcher"
+            >
+              <Text variant="title" style={styles.skillName} numberOfLines={2}>
+                {focusedSummary.skill}
+              </Text>
+              {paths.length > 1 ? (
+                <ChevronDown size={22} color={color.textSecondary} strokeWidth={2.4} />
+              ) : null}
+            </Pressable>
+
+            <Text variant="caption" tone="textSecondary" numberOfLines={2}>
               {focusedSummary.goal}
             </Text>
-            <View style={styles.bar}>
+
+            <View style={styles.progressRow}>
               <ProgressBar value={pathProgress(focusedSummary)} />
+              {/* Fixed width and no shrink, so a long skill cannot push it away. */}
+              <Text variant="caption" tone="textSecondary" style={styles.count}>
+                {focusedSummary.completedCount}/{focusedSummary.techniqueCount}
+              </Text>
             </View>
-            <Text variant="caption" tone="textSecondary">
-              {focusedSummary.completedCount} of {focusedSummary.techniqueCount} techniques
-            </Text>
           </>
         ) : null}
 
-        {pathLoading && focusedSummary ? <Skeleton height={150} /> : null}
+        {pathLoading && focusedSummary ? <Skeleton height={210} /> : null}
 
         {active ? (
           <>
             <Text variant="overline" tone="textSecondary" style={styles.label}>
-              Today’s focus
+              Today · {active.estimatedMinutes} min
             </Text>
             <Card>
               <Text variant="title">{active.title}</Text>
               <Text variant="caption" tone="textSecondary" style={styles.meta}>
-                {active.modality.replace(/_/g, ' ')} · {active.estimatedMinutes} min
+                {active.modality.replace(/_/g, ' ')}
               </Text>
-              <Text variant="body" style={styles.why}>
-                {active.whyItMatters}
-              </Text>
+
+              <Text variant="body">{active.whyItMatters}</Text>
+
+              {/* The rep is the thing Path cannot show, so it leads here. */}
+              <View style={styles.rep}>
+                <Text variant="overline" tone="progressText">
+                  The rep
+                </Text>
+                <Text variant="body" tone="progressText" style={styles.repText}>
+                  {active.practicePrompt}
+                </Text>
+              </View>
+
+              {active.resources.length > 0 ? (
+                <Text variant="caption" tone="textSecondary" style={styles.resource} numberOfLines={2}>
+                  Watch first: {active.resources[0]?.title}
+                </Text>
+              ) : null}
+
               <Button
                 label="Start practice"
                 onPress={() => router.push('/path')}
                 testID="start-practice"
               />
             </Card>
+
+            {next ? (
+              <Text variant="caption" tone="textSecondary" numberOfLines={1} style={styles.after}>
+                After this: {next.title}
+              </Text>
+            ) : null}
           </>
         ) : null}
 
@@ -142,17 +169,6 @@ export default function TodayScreen() {
               Every technique on this path is done. Start another skill whenever you like.
             </Text>
           </Card>
-        ) : null}
-
-        {upcoming.length > 0 ? (
-          <>
-            <Text variant="overline" tone="textSecondary" style={styles.label}>
-              Next up
-            </Text>
-            {upcoming.map((technique) => (
-              <LockedRow key={technique.id} technique={technique} />
-            ))}
-          </>
         ) : null}
       </ScrollView>
 
@@ -174,19 +190,6 @@ export default function TodayScreen() {
   );
 }
 
-function LockedRow({ technique }: { technique: Technique }) {
-  return (
-    <Card style={styles.locked}>
-      <Text variant="label" tone="textSecondary" numberOfLines={1} style={styles.lockedText}>
-        {technique.title}
-      </Text>
-      <Text variant="caption" tone="textSecondary">
-        {technique.estimatedMinutes} min
-      </Text>
-    </Card>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.surfacePage },
   hud: {
@@ -198,13 +201,6 @@ const styles = StyleSheet.create({
   },
   brand: { fontSize: 17 },
   spacer: { flex: 1 },
-  switcher: {
-    maxWidth: 160,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: 8,
-    backgroundColor: color.brandSoft,
-  },
   content: {
     paddingHorizontal: space.base,
     gap: space.sm,
@@ -212,12 +208,23 @@ const styles = StyleSheet.create({
     maxWidth: 640,
     alignSelf: 'center',
   },
-  bar: { flexDirection: 'row' },
+  skillRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.xs },
+  skillName: { flex: 1, minWidth: 0 },
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginTop: space.xs },
+  count: { flexShrink: 0 },
   label: { marginTop: space.base },
   meta: { marginBottom: space.md },
-  why: { marginBottom: space.base },
+  rep: {
+    marginTop: space.base,
+    marginBottom: space.base,
+    padding: space.md,
+    borderRadius: 12,
+    backgroundColor: color.progressSoft,
+    gap: space.xs,
+  },
+  repText: { fontSize: 15, lineHeight: 21 },
+  resource: { marginBottom: space.base },
+  after: { marginTop: space.xs, textAlign: 'center' },
   gap: { marginVertical: space.sm },
   empty: { alignItems: 'center', gap: space.base, paddingTop: space.xxl },
-  locked: { flexDirection: 'row', alignItems: 'center', gap: space.sm, opacity: 0.72 },
-  lockedText: { flex: 1, minWidth: 0 },
 });
