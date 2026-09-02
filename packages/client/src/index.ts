@@ -7,3 +7,4 @@ export * from './api';
 export * from './errors';
 export * from './storage';
 export * from './onboarding-draft';
+export * from './focus';
