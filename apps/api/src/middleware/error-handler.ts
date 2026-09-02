@@ -1,10 +1,12 @@
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError, z } from 'zod';
 import { logger } from '../config/logger';
+import { AppError, RateLimitedError } from '../lib/errors';
 
-// TODO: replace the generic 500 branch with the typed error taxonomy
-// (NotFound / Conflict / ProviderUnavailable / QuotaExhausted ...) so services
-// can signal intent without knowing about HTTP.
+/**
+ * The only place that knows about HTTP status codes. Services throw from the
+ * error taxonomy in lib/errors and this maps them.
+ */
 export function errorHandler(
   error: unknown,
   _req: Request,
@@ -13,6 +15,25 @@ export function errorHandler(
 ): void {
   if (error instanceof ZodError) {
     res.status(400).json({ error: 'ValidationError', details: z.treeifyError(error) });
+
+    return;
+  }
+
+  if (error instanceof AppError) {
+    // Expected conditions - a bad id or a spent quota is not a server fault.
+    logger.info({ code: error.code, status: error.status }, error.message);
+
+    // Tell the client how long to wait instead of making it guess.
+    if (error instanceof RateLimitedError) {
+      res.setHeader('Retry-After', String(error.retryAfterSeconds ?? 10));
+    }
+
+    res.status(error.status).json({
+      error: error.code,
+      message: error.message,
+      ...(error.details === undefined ? {} : { details: error.details }),
+    });
+
     return;
   }
 
