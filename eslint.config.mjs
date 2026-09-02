@@ -29,7 +29,7 @@ export default tseslint.config(
   },
   {
     // Metro and other tooling configs are loaded by Node as CommonJS.
-    files: ['**/*.config.js'],
+    files: ['**/*.config.js', '**/jest.setup.js'],
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
   prettier,
