@@ -4,4 +4,7 @@
 // against these schemas, and the client derives its TypeScript types from the
 // same source, so the two cannot drift.
 
-export {};
+export * from './ai';
+export * from './api';
+export * from './domain';
+export * from './modality';
