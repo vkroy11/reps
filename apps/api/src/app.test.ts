@@ -139,6 +139,31 @@ describe('API', () => {
       expect(reflected.body.intervention).toBeNull();
     });
 
+    /** Two hobbies at once: the home screen focuses on paths[0]. */
+    it('lists paths with the most recently practised first', async () => {
+      const guitar = await request(app).post('/api/paths').set('x-device-id', DEVICE_ID).send(INPUT);
+      const chess = await request(app)
+        .post('/api/paths')
+        .set('x-device-id', DEVICE_ID)
+        .send({ ...INPUT, skill: 'chess', goal: 'stop losing pieces' });
+
+      const listed = await request(app).get('/api/paths').set('x-device-id', DEVICE_ID);
+      expect(listed.body.paths.map((path: { id: string }) => path.id)).toEqual([
+        chess.body.path.id,
+        guitar.body.path.id,
+      ]);
+
+      // Reflecting on a guitar technique brings guitar back into focus.
+      await request(app)
+        .post(`/api/techniques/${guitar.body.path.techniques[0].id}/reflect`)
+        .set('x-device-id', DEVICE_ID)
+        .send({ confidence: 'getting_there' });
+
+      const reordered = await request(app).get('/api/paths').set('x-device-id', DEVICE_ID);
+      expect(reordered.body.paths[0].id).toBe(guitar.body.path.id);
+      expect(reordered.body.paths).toHaveLength(2);
+    });
+
     it('rejects an invalid onboarding payload', async () => {
       const response = await request(app)
         .post('/api/paths')

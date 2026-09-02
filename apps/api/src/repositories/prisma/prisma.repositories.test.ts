@@ -64,6 +64,7 @@ describeIfDatabase('prisma repositories', () => {
       preferredFormats: ['video'],
       language: 'en',
       createdAt: new Date('2026-09-02T10:00:00.000Z').toISOString(),
+      updatedAt: new Date('2026-09-02T10:00:00.000Z').toISOString(),
       techniques: [
         technique({
           id: 'tec_test_1',
@@ -136,6 +137,33 @@ describeIfDatabase('prisma repositories', () => {
 
     expect(summary?.techniqueCount).toBe(2);
     expect(summary?.completedCount).toBe(1);
+  });
+
+  /**
+   * Someone learning two hobbies sees the one they practised most recently.
+   * Focus is ordering rather than a stored flag, so there is nothing to keep
+   * in sync and nothing to migrate.
+   */
+  it('lists the most recently practised path first', async () => {
+    const guitar = await repositories.paths.save(samplePath('path_guitar'));
+    const chess = await repositories.paths.save({
+      ...samplePath('path_chess'),
+      skill: 'chess',
+      techniques: [technique({ id: 'tec_chess_1', pathId: 'path_chess' })],
+    });
+
+    expect((await repositories.paths.listByUser(userId)).map((p) => p.id)).toEqual([
+      chess.id,
+      guitar.id,
+    ]);
+
+    // Practising guitar again moves it back into focus.
+    await repositories.paths.save(guitar);
+
+    expect((await repositories.paths.listByUser(userId)).map((p) => p.id)).toEqual([
+      guitar.id,
+      chess.id,
+    ]);
   });
 
   it('updates a technique in place without duplicating it', async () => {

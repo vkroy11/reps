@@ -35,6 +35,7 @@ export function createPathService(deps: {
         preferredFormats: input.preferredFormats,
         language: input.language,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         techniques: generated.techniques.map((technique, index) =>
           toTechnique(technique, {
             pathId,

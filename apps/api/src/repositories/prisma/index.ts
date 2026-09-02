@@ -110,7 +110,9 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
       async listByUser(userId): Promise<LearningPathSummary[]> {
         const rows = await prisma.learningPath.findMany({
           where: { userId },
-          orderBy: { createdAt: 'desc' },
+          // Tie-broken so two paths saved in the same instant still have a
+          // deterministic focus order.
+          orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
           include: {
             techniques: { select: { status: true } },
             _count: { select: { techniques: true } },
@@ -129,6 +131,7 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
           preferredFormats: row.preferredFormats as LearningPathSummary['preferredFormats'],
           language: row.language,
           createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
           techniqueCount: row._count.techniques,
           completedCount: row.techniques.filter((technique) => technique.status === 'completed')
             .length,

@@ -27,6 +27,7 @@ export function toDomainPath(row: PathWithTechniques): LearningPath {
     preferredFormats: row.preferredFormats,
     language: row.language,
     createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
     techniques: [...row.techniques]
       .sort((left, right) => left.order - right.order)
       .map((technique) => ({

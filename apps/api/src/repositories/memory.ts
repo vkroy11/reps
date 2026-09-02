@@ -17,6 +17,13 @@ import type { Repositories, User } from './types';
 export function createMemoryRepositories(): Repositories {
   const usersByDeviceId = new Map<string, User>();
   const pathsById = new Map<string, LearningPath>();
+  /**
+   * Save order. `updatedAt` has millisecond resolution, so two saves in the
+   * same millisecond tie and the focus order becomes arbitrary - this makes it
+   * a total order.
+   */
+  const savedSeqById = new Map<string, number>();
+  let saveSeq = 0;
   const contentByKey = new Map<string, TechniqueContent>();
   const resourceCache = new Map<string, { candidates: ResourceCandidate[]; cachedAt: number }>();
   const quotaByKey = new Map<string, number>();
@@ -54,9 +61,12 @@ export function createMemoryRepositories(): Repositories {
 
     paths: {
       async save(path) {
-        pathsById.set(path.id, structuredClone(path));
+        // Stamped here rather than by the caller so every write path gets it.
+        const stamped: LearningPath = { ...path, updatedAt: new Date().toISOString() };
+        pathsById.set(stamped.id, structuredClone(stamped));
+        savedSeqById.set(stamped.id, ++saveSeq);
 
-        return structuredClone(path);
+        return structuredClone(stamped);
       },
 
       async findById(id) {
@@ -78,7 +88,8 @@ export function createMemoryRepositories(): Repositories {
       async listByUser(userId) {
         return [...pathsById.values()]
           .filter((path) => path.userId === userId)
-          .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+          // Most recently practised first: that is what the home screen focuses on.
+          .sort((left, right) => (savedSeqById.get(right.id) ?? 0) - (savedSeqById.get(left.id) ?? 0))
           .map(toSummary);
       },
     },
