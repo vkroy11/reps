@@ -83,6 +83,12 @@ export const LearningPathSchema = z.object({
   preferredFormats: z.array(ContentFormatSchema),
   language: z.string(),
   createdAt: z.string(),
+  /**
+   * Bumped on every save, so the most recently practised path is the one the
+   * home screen focuses on when someone is learning more than one thing. Also
+   * the field sync reconciliation compares for last-write-wins.
+   */
+  updatedAt: z.string(),
   techniques: z.array(TechniqueSchema),
 });
 export type LearningPath = z.infer<typeof LearningPathSchema>;
