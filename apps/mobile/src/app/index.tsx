@@ -1,4 +1,5 @@
 import { firstIncompleteStep } from '@reps/client';
+import { usePathList } from '../features/paths/usePaths';
 import { Button, PipLogo, Text, color, space } from '@reps/ui';
 import { Link, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
@@ -8,7 +9,8 @@ import { useApp } from '../providers/app-provider';
 export default function WelcomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { draft, clearDraft, ready } = useApp();
+  const { draft, ready } = useApp();
+  const { paths, loading: pathsLoading } = usePathList();
 
   // A draft only counts as resumable once the first answer exists.
   const hasDraft = ready && Boolean(draft.skill);
@@ -28,6 +30,15 @@ export default function WelcomeScreen() {
       </View>
 
       <View style={styles.actions}>
+        {/* Someone with paths already is here by accident; send them to Today. */}
+        {!pathsLoading && paths.length > 0 ? (
+          <Button
+            label="Continue learning"
+            onPress={() => router.replace('/(tabs)')}
+            testID="continue-learning"
+          />
+        ) : null}
+
         {hasDraft ? (
           <>
             <Button
@@ -35,13 +46,15 @@ export default function WelcomeScreen() {
               onPress={() => router.push(`/onboarding/${resumeStep}`)}
               testID="resume"
             />
+            {/*
+              Navigates without clearing. The skill screen already drops the
+              goal and level when the skill actually changes, so there is no
+              destructive action sitting under the primary button.
+            */}
             <Button
-              label="Start something else"
+              label="Pick a different skill"
               variant="ghost"
-              onPress={() => {
-                void clearDraft();
-                router.push('/onboarding/skill');
-              }}
+              onPress={() => router.push('/onboarding/skill')}
             />
           </>
         ) : (

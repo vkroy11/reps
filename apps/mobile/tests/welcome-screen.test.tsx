@@ -67,13 +67,17 @@ describe('WelcomeScreen', () => {
     expect(getByText('Continue with chess')).toBeOnTheScreen();
   });
 
-  it('clears the draft before starting something else', async () => {
+  /**
+   * Regression: this used to clear the draft on tap, sitting directly under
+   * the primary button. Changing skill is handled by the skill screen instead.
+   */
+  it('does not destroy anything when picking a different skill', async () => {
     mockDraft = { skill: 'guitar' };
 
     const { getByText } = await renderScreen(<WelcomeScreen />);
-    await fireEvent.press(getByText('Start something else'));
+    await fireEvent.press(getByText('Pick a different skill'));
 
-    expect(mockClearDraft).toHaveBeenCalled();
+    expect(mockClearDraft).not.toHaveBeenCalled();
     expect(mockPush).toHaveBeenCalledWith('/onboarding/skill');
   });
 
