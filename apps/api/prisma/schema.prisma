@@ -1,6 +1,8 @@
-// Models go here. See §9 of the plan document for the intended shape:
-// User, LearningPath, Technique, Resource, Note, PlaybackState, SrsCard,
-// ProgressEvent, StreakState.
+// Vocabulary fields (archetype, modality, status, confidence, format) are
+// stored as text rather than native enums on purpose: the domain vocabulary is
+// defined once as Zod schemas in packages/core and validated at every
+// boundary. Duplicating it here would create a second source of truth and a
+// migration for every vocabulary change.
 
 generator client {
   provider = "prisma-client-js"
@@ -9,4 +11,104 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id
+  deviceId  String   @unique
+  googleId  String?  @unique
+  createdAt DateTime @default(now())
+
+  paths LearningPath[]
+}
+
+model LearningPath {
+  id               String   @id
+  userId           String
+  skill            String
+  archetype        String
+  goal             String
+  level            String
+  dailyMinutes     Int
+  daysPerWeek      Int
+  preferredFormats String[]
+  language         String
+  createdAt        DateTime
+  updatedAt        DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  techniques Technique[]
+
+  @@index([userId, createdAt])
+}
+
+model Technique {
+  id     String @id
+  pathId String
+  /// "order" is a reserved word in SQL, so the column is named position.
+  order  Int    @map("position")
+
+  title                String
+  whyItMatters         String
+  modality             String
+  practicePrompt       String
+  estimatedMinutes     Int
+  status               String
+  confidence           String?
+  struggleCount        Int      @default(0)
+  bridgeForTechniqueId String?
+  searchQueries        String[]
+
+  path      LearningPath       @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  resources Resource[]
+  content   TechniqueContent[]
+
+  @@index([pathId, order])
+}
+
+model Resource {
+  id              String  @id
+  techniqueId     String
+  format          String
+  title           String
+  url             String?
+  thumbnailUrl    String?
+  source          String
+  durationSec     Int?
+  selectionReason String
+
+  technique Technique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+
+  @@index([techniqueId])
+}
+
+/// Generated lessons, drills and card decks. Keyed by technique and format so
+/// re-opening a technique costs nothing.
+model TechniqueContent {
+  techniqueId String
+  format      String
+  content     Json
+  createdAt   DateTime @default(now())
+
+  technique Technique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+
+  @@id([techniqueId, format])
+}
+
+/// Resource search results keyed by normalized query hash. This is what makes
+/// YouTube's ~100 searches/day workable across users.
+model ResourceCacheEntry {
+  key        String   @id
+  candidates Json
+  cachedAt   DateTime @default(now())
+}
+
+/// Daily spend against an external provider's allowance.
+model QuotaUsage {
+  resource String
+  /// Calendar day as YYYY-MM-DD.
+  day      String
+  units    Int    @default(0)
+
+  @@id([resource, day])
 }

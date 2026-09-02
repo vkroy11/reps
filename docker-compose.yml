@@ -1,0 +1,27 @@
+# Postgres for local development, for anyone who would rather not install it.
+#   docker compose up -d
+#   npm run db:migrate -w @reps/api
+#
+# Matches the DATABASE_URL in .env.example:
+#   postgresql://reps:reps@localhost:5432/reps
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: reps-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: reps
+      POSTGRES_PASSWORD: reps
+      POSTGRES_DB: reps
+    ports:
+      - '5432:5432'
+    volumes:
+      - reps-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U reps -d reps']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  reps-pgdata:
