@@ -1,20 +1,80 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { firstIncompleteStep } from '@reps/client';
+import { Button, PipLogo, Text, color, space } from '@reps/ui';
+import { Link, useRouter } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useApp } from '../providers/app-provider';
 
-export default function HomeScreen() {
+export default function WelcomeScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { draft, clearDraft, ready } = useApp();
+
+  // A draft only counts as resumable once the first answer exists.
+  const hasDraft = ready && Boolean(draft.skill);
+  const resumeStep = firstIncompleteStep(draft);
+
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Reps</Text>
-        <Text style={styles.subtitle}>Scaffold is running on iOS, Android and web.</Text>
+    <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      <View style={styles.hero}>
+        <PipLogo size={128} />
+        <Text variant="display" center style={styles.title}>
+          Get good at one thing at a time.
+        </Text>
+        <Text variant="body" tone="textSecondary" center>
+          Reps builds a short path of 5–8 techniques, finds the right thing to watch, and stops
+          there.
+        </Text>
       </View>
-    </SafeAreaView>
+
+      <View style={styles.actions}>
+        {hasDraft ? (
+          <>
+            <Button
+              label={`Continue with ${draft.skill}`}
+              onPress={() => router.push(`/onboarding/${resumeStep}`)}
+              testID="resume"
+            />
+            <Button
+              label="Start something else"
+              variant="ghost"
+              onPress={() => {
+                void clearDraft();
+                router.push('/onboarding/skill');
+              }}
+            />
+          </>
+        ) : (
+          <Button
+            label="Get started"
+            onPress={() => router.push('/onboarding/skill')}
+            testID="get-started"
+          />
+        )}
+
+        {__DEV__ ? (
+          <Link href="/gallery" style={styles.devLink}>
+            <Text variant="caption" tone="textSecondary">
+              Design system (dev)
+            </Text>
+          </Link>
+        ) : null}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  content: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  title: { fontSize: 32, fontWeight: '700' },
-  subtitle: { fontSize: 15, opacity: 0.6 },
+  screen: {
+    flex: 1,
+    backgroundColor: color.surfacePage,
+    paddingHorizontal: space.lg,
+    width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center',
+  },
+  hero: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.base },
+  title: { marginTop: space.sm },
+  actions: { gap: space.sm, paddingBottom: space.base },
+  devLink: { alignSelf: 'center', paddingVertical: space.sm },
 });
