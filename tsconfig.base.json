@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "paths": {
+      "@reps/core": ["./packages/core/src"],
+      "@reps/core/*": ["./packages/core/src/*"],
+      "@reps/ui": ["./packages/ui/src"],
+      "@reps/ui/*": ["./packages/ui/src/*"],
+      "@reps/client": ["./packages/client/src"],
+      "@reps/client/*": ["./packages/client/src/*"]
+    }
+  }
+}

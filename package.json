@@ -1,0 +1,33 @@
+{
+  "name": "reps",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Turn any hobby into a short, finishable practice path.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev:mobile": "npm run start -w @reps/mobile",
+    "dev:web": "npm run web -w @reps/mobile",
+    "dev:api": "npm run dev -w @reps/api",
+    "build:web": "npm run build:web -w @reps/mobile",
+    "build:api": "npm run build -w @reps/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "eslint-config-expo": "~10.0.0",
+    "eslint-config-prettier": "^10.1.5",
+    "prettier": "^3.6.2",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.46.0"
+  }
+}

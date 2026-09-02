@@ -1,0 +1,12 @@
+// Models go here. See §9 of the plan document for the intended shape:
+// User, LearningPath, Technique, Resource, Note, PlaybackState, SrsCard,
+// ProgressEvent, StreakState.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
