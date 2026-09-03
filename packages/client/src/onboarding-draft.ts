@@ -24,9 +24,48 @@ export type OnboardingDraft = z.infer<typeof OnboardingDraftSchema>;
 
 export const emptyDraft: OnboardingDraft = {};
 
-/** The five questions, in order. Used for the progress bar and back navigation. */
+/** The five questions, in order. Used for the step counter and back navigation. */
 export const onboardingSteps = ['skill', 'goal', 'level', 'time', 'formats'] as const;
 export type OnboardingStep = (typeof onboardingSteps)[number];
+
+/**
+ * The flow as the learner walks it, interstitials included.
+ *
+ * The two `cheer` beats are placed after the answers that most need reframing:
+ * the goal (which the learner has just committed to) and the weekly time (the
+ * answer people talk themselves out of). They are separate from
+ * `onboardingSteps` because they hold no answer - progress and completeness are
+ * still counted in questions, while the ring below is filled by position in
+ * this list, so the interstitials do not stall it.
+ */
+export const onboardingFlow = [
+  'skill',
+  'goal',
+  'cheer1',
+  'level',
+  'time',
+  'cheer2',
+  'formats',
+] as const;
+export type OnboardingFlowStep = (typeof onboardingFlow)[number];
+
+export function isQuestionStep(step: OnboardingFlowStep): step is OnboardingStep {
+  return step !== 'cheer1' && step !== 'cheer2';
+}
+
+/** How far through the whole flow a step sits, as 0 to 1, for the ring. */
+export function flowProgress(step: OnboardingFlowStep): number {
+  return (onboardingFlow.indexOf(step) + 1) / onboardingFlow.length;
+}
+
+/** The next and previous screens, so no screen hardcodes its neighbour. */
+export function stepAfter(step: OnboardingFlowStep): OnboardingFlowStep | 'generating' {
+  return onboardingFlow[onboardingFlow.indexOf(step) + 1] ?? 'generating';
+}
+
+export function stepBefore(step: OnboardingFlowStep): OnboardingFlowStep | null {
+  return onboardingFlow[onboardingFlow.indexOf(step) - 1] ?? null;
+}
 
 /** Which answer each step is responsible for. */
 const REQUIRED_BY_STEP: Record<OnboardingStep, (draft: OnboardingDraft) => boolean> = {

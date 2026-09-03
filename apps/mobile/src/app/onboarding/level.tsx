@@ -1,3 +1,4 @@
+import { stepAfter } from '@reps/client';
 import { useRouter } from 'expo-router';
 import { SuggestionQuestion } from '../../features/onboarding/SuggestionQuestion';
 import { useApp } from '../../providers/app-provider';
@@ -10,13 +11,15 @@ export default function LevelScreen() {
     <SuggestionQuestion
       step="level"
       question="Where are you now?"
+      aside="Be honest. This decides where the path starts, not how good you are."
+      pipAside="Honest beats flattering. It only moves the starting line."
       skill={draft.skill}
       select={(suggestions) => suggestions.levels}
       value={draft.level}
-      customPlaceholder="Describe where you're starting from"
+      customPlaceholder="e.g. I can hold chords but changes stall"
       onSubmit={(level) => {
         patchDraft({ level });
-        router.push('/onboarding/time');
+        router.push(`/onboarding/${stepAfter('level')}`);
       }}
     />
   );

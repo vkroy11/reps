@@ -12,8 +12,9 @@ import WifiOff from 'lucide-react-native/icons/wifi-off';
  * `Copyright (c) 2013-present Cole Bemis`. Both notices belong in the
  * acknowledgements before submission.
  */
-export function BackIcon({ size = 26 }: { size?: number }) {
-  return <ChevronLeft size={size} color={color.textSecondary} strokeWidth={2.4} />;
+/** `tint` is for coloured panels, where the default grey would disappear. */
+export function BackIcon({ size = 26, tint }: { size?: number; tint?: string }) {
+  return <ChevronLeft size={size} color={tint ?? color.textSecondary} strokeWidth={2.4} />;
 }
 
 export function RetryIcon({ size = 20 }: { size?: number }) {

@@ -17,6 +17,7 @@ export const storageKey = {
   deviceId: 'reps.device-id',
   onboardingDraft: 'reps.onboarding-draft',
   focusedPathId: 'reps.focused-path-id',
+  onboarded: 'reps.onboarded',
 } as const;
 
 /**

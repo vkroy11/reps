@@ -1,15 +1,11 @@
-import { Chip, Text, color, radius, space, typeScale, useReduceMotion } from '@reps/ui';
+import { stepAfter } from '@reps/client';
+import { accentOn, panels, radius, space, typeScale } from '@reps/ui';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
-import { OnboardingScaffold } from '../../features/onboarding/OnboardingScaffold';
+import { CyclingExamples } from '../../features/onboarding/CyclingExamples';
+import { ImmersiveScaffold } from '../../features/onboarding/ImmersiveScaffold';
+import { PanelChip } from '../../features/onboarding/PanelChip';
 import { useApp } from '../../providers/app-provider';
 
 const POPULAR = [
@@ -23,23 +19,20 @@ const POPULAR = [
   'Wine tasting',
 ];
 
-const EXAMPLES = [
-  'Try “chess” · “latte art” · “bouldering”',
-  'Try “poker” · “watercolour” · “salsa”',
-  'Try “wine tasting” · “calligraphy”',
-];
-
 export default function SkillScreen() {
   const router = useRouter();
   const { draft, patchDraft } = useApp();
   const [skill, setSkill] = useState(draft.skill ?? '');
 
+  const panel = panels.skill;
   const trimmed = skill.trim();
 
   return (
-    <OnboardingScaffold
+    <ImmersiveScaffold
       step="skill"
       question="What do you want to get good at?"
+      aside="One hobby at a time. You can add another path later."
+      pipAside="One skill. Reps builds the rest around it."
       canContinue={trimmed.length >= 2}
       onContinue={() => {
         // Changing the skill invalidates the answers derived from it.
@@ -47,89 +40,53 @@ export default function SkillScreen() {
         patchDraft(
           changedSkill ? { skill: trimmed, goal: undefined, level: undefined } : { skill: trimmed },
         );
-        router.push('/onboarding/goal');
+        router.push(`/onboarding/${stepAfter('skill')}`);
       }}
     >
+      {/*
+        An underline rather than a boxed field. On a saturated panel a bordered
+        white box reads as a card sitting on the colour; an underline keeps the
+        answer part of the panel, which is the point of the full-bleed step.
+      */}
       <TextInput
         value={skill}
         onChangeText={setSkill}
         placeholder="Guitar"
-        placeholderTextColor={color.iconDecorative}
+        placeholderTextColor={panel.ink2}
         autoCapitalize="words"
         autoCorrect={false}
         returnKeyType="next"
         accessibilityLabel="The skill you want to get good at"
-        style={styles.input}
+        style={[styles.input, { color: panel.ink, borderBottomColor: accentOn(panel) }]}
+        testID="skill-input"
       />
 
-      <CyclingExamples />
+      <CyclingExamples color={panel.ink2} />
 
-      <Text variant="overline" tone="textSecondary" style={styles.label}>
-        Popular
-      </Text>
       <View style={styles.chips}>
         {POPULAR.map((item) => (
-          <Chip
+          <PanelChip
             key={item}
             label={item}
+            panel={panel}
             selected={trimmed.toLowerCase() === item.toLowerCase()}
             onPress={() => setSkill(item)}
+            testID={`skill-${item}`}
           />
         ))}
       </View>
-    </OnboardingScaffold>
-  );
-}
-
-/** Wondering's pattern: the question is the hero, examples suggest the range. */
-function CyclingExamples() {
-  const reduceMotion = useReduceMotion();
-  const [index, setIndex] = useState(0);
-  const opacity = useSharedValue(1);
-
-  useEffect(() => {
-    if (reduceMotion) return;
-
-    const timer = setInterval(() => {
-      setIndex((current) => (current + 1) % EXAMPLES.length);
-    }, 3000);
-
-    return () => clearInterval(timer);
-  }, [reduceMotion]);
-
-  useEffect(() => {
-    if (reduceMotion) return;
-
-    // opacity only: no layout work, so this can loop forever safely.
-    opacity.value = withSequence(
-      withTiming(0, { duration: 0 }),
-      withTiming(1, { duration: 240, easing: Easing.out(Easing.quad) }),
-    );
-  }, [index, opacity, reduceMotion]);
-
-  const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-
-  return (
-    <Animated.View style={animatedStyle}>
-      <Text variant="caption" tone="textSecondary">
-        {EXAMPLES[index]}
-      </Text>
-    </Animated.View>
+    </ImmersiveScaffold>
   );
 }
 
 const styles = StyleSheet.create({
   input: {
-    ...typeScale.heading,
-    color: color.textPrimary,
-    backgroundColor: color.surfaceCard,
-    borderWidth: 2,
-    borderColor: color.brand,
-    borderRadius: radius.input,
-    paddingHorizontal: space.base,
+    ...typeScale.title,
+    borderBottomWidth: 3,
+    borderRadius: 0,
+    paddingHorizontal: 2,
     paddingVertical: space.md,
-    minHeight: 56,
+    minHeight: 58,
   },
-  label: { marginTop: space.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },
 });
