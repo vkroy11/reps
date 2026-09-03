@@ -1,11 +1,21 @@
 import {
+  NoteSchema,
+  NoteWithContextSchema,
   LearningPathSchema,
   LearningPathSummarySchema,
   OnboardingSuggestionsSchema,
+  TechniqueContentSchema,
+  TechniqueSchema,
+  type GeneratedContentFormat,
   type LearningPath,
   type LearningPathSummary,
   type OnboardingInput,
+  type CreateNoteRequest,
+  type Note,
+  type NoteWithContext,
   type OnboardingSuggestions,
+  type Technique,
+  type TechniqueContent,
 } from '@reps/core';
 import { z } from 'zod';
 import { ApiError, type ApiErrorCode } from './errors';
@@ -72,6 +82,23 @@ export function createApiClient({ baseUrl, deviceId, fetchImpl = fetch }: ApiCli
     return parsed.data;
   }
 
+  /** For endpoints that answer 204: there is nothing to parse, only to check. */
+  async function requestNoContent(path: string, method: string): Promise<void> {
+    let response: Response;
+
+    try {
+      response = await fetchImpl(`${baseUrl}${path}`, {
+        method,
+        headers: { 'x-device-id': deviceId },
+        signal: AbortSignal.timeout(TIMEOUT_MS.default),
+      });
+    } catch (error) {
+      throw new ApiError('NetworkError', (error as Error).message);
+    }
+
+    if (!response.ok) throw await toApiError(response);
+  }
+
   return {
     /** Skill-specific goals and level descriptors for onboarding questions 2 and 3. */
     async suggestions(skill: string): Promise<OnboardingSuggestions> {
@@ -111,6 +138,80 @@ export function createApiClient({ baseUrl, deviceId, fetchImpl = fetch }: ApiCli
       });
 
       return path;
+    },
+
+    /**
+     * One technique. The API curates its resources on first open, so this call
+     * can be slower than a plain read the first time a technique is visited.
+     */
+    async getTechnique(techniqueId: string): Promise<Technique> {
+      const { technique } = await request(`/api/techniques/${techniqueId}`, {
+        schema: z.object({ technique: TechniqueSchema }),
+        timeoutMs: 30_000,
+      });
+
+      return technique;
+    },
+
+    /**
+     * The generated drill, card deck or micro-lesson for a technique. Format
+     * defaults to whatever the technique's modality calls for; the API stores
+     * the result, so a second visit is instant.
+     */
+    async getTechniqueContent(
+      techniqueId: string,
+      format?: GeneratedContentFormat,
+    ): Promise<TechniqueContent> {
+      const query = format ? `?format=${format}` : '';
+      const { content } = await request(`/api/techniques/${techniqueId}/content${query}`, {
+        schema: z.object({ content: TechniqueContentSchema }),
+        timeoutMs: 45_000,
+      });
+
+      return content;
+    },
+
+    /** Notes on one technique, ordered by position in the resource. */
+    async listNotes(techniqueId: string): Promise<Note[]> {
+      const { notes } = await request(`/api/notes?techniqueId=${techniqueId}`, {
+        schema: z.object({ notes: z.array(NoteSchema) }),
+      });
+
+      return notes;
+    },
+
+    /** The notebook: every note with the technique and skill it came from. */
+    async listAllNotes(): Promise<NoteWithContext[]> {
+      const { notes } = await request('/api/notes', {
+        schema: z.object({ notes: z.array(NoteWithContextSchema) }),
+      });
+
+      return notes;
+    },
+
+    async createNote(input: CreateNoteRequest): Promise<Note> {
+      const { note } = await request('/api/notes', {
+        method: 'POST',
+        body: input,
+        schema: z.object({ note: NoteSchema }),
+      });
+
+      return note;
+    },
+
+    async updateNote(noteId: string, body: string): Promise<Note> {
+      const { note } = await request(`/api/notes/${noteId}`, {
+        method: 'PATCH',
+        body: { body },
+        schema: z.object({ note: NoteSchema }),
+      });
+
+      return note;
+    },
+
+    async deleteNote(noteId: string): Promise<void> {
+      // 204, so there is no body to validate.
+      await requestNoContent(`/api/notes/${noteId}`, 'DELETE');
     },
 
     async health(): Promise<boolean> {
