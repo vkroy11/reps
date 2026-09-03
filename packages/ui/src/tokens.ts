@@ -45,6 +45,8 @@ export const color = {
 
   surfacePage: '#F8FAFC',
   surfaceCard: '#FFFFFF',
+  /** A card recessed into the page: filter rows, inert panels, ghost buttons. */
+  surfaceSunken: '#F1F5F9',
   surfaceLocked: '#E2E8F0',
 
   borderDefault: '#E2E8F0',

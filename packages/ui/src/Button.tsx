@@ -9,7 +9,7 @@ import { Text } from './Text';
 import { useReduceMotion } from './hooks/useReduceMotion';
 import { color, hit, radius, space, springConfig } from './tokens';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'inverse';
 
 export interface ButtonProps {
   label: string;
@@ -27,13 +27,37 @@ export interface ButtonProps {
 const EDGE = 4;
 const PRESSED_EDGE = 2;
 
-const FILLS: Record<ButtonVariant, { fill: string; edge: string; label: 'textOnBrand' | 'brand' }> =
+type LabelTone = 'textOnBrand' | 'brand' | 'textSecondary';
+
+/**
+ * The disabled overrides are only set where the defaults would mislead. On a
+ * brand panel, a light grey pill reads as an enabled white button and invites
+ * the tap it is refusing - so inverse disables to a translucent white, and its
+ * label stays white, because grey-on-that measures 1.42 and vanishes.
+ */
+const FILLS: Record<
+  ButtonVariant,
   {
-    primary: { fill: color.brand, edge: color.brandPressed, label: 'textOnBrand' },
-    secondary: { fill: color.surfaceCard, edge: color.borderStrong, label: 'brand' },
-    ghost: { fill: 'transparent', edge: 'transparent', label: 'brand' },
-    danger: { fill: color.danger, edge: color.dangerPressed, label: 'textOnBrand' },
-  };
+    fill: string;
+    edge: string;
+    label: LabelTone;
+    disabledFill?: string;
+    disabledLabel?: LabelTone;
+  }
+> = {
+  primary: { fill: color.brand, edge: color.brandPressed, label: 'textOnBrand' },
+  secondary: { fill: color.surfaceCard, edge: color.borderStrong, label: 'brand' },
+  ghost: { fill: 'transparent', edge: 'transparent', label: 'brand' },
+  danger: { fill: color.danger, edge: color.dangerPressed, label: 'textOnBrand' },
+  /** For a brand-filled panel, where a brand button would be invisible. */
+  inverse: {
+    fill: color.textOnBrand,
+    edge: color.brandSoft,
+    label: 'brand',
+    disabledFill: 'rgba(255,255,255,0.18)',
+    disabledLabel: 'textOnBrand',
+  },
+};
 
 export function Button({
   label,
@@ -85,7 +109,9 @@ export function Button({
             styles.base,
             {
               height: compact ? 46 : hit.cta,
-              backgroundColor: disabled ? color.surfaceLocked : tokens.fill,
+              backgroundColor: disabled
+                ? (tokens.disabledFill ?? color.surfaceLocked)
+                : tokens.fill,
               borderBottomColor: disabled ? color.borderDefault : tokens.edge,
             },
             variant === 'secondary' && styles.outlined,
@@ -95,7 +121,7 @@ export function Button({
         >
           <Text
             variant={compact ? 'caption' : 'label'}
-            tone={disabled ? 'textSecondary' : tokens.label}
+            tone={disabled ? (tokens.disabledLabel ?? 'textSecondary') : tokens.label}
             style={styles.label}
             numberOfLines={1}
           >
