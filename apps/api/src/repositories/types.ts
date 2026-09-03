@@ -2,6 +2,8 @@ import type {
   GeneratedContentFormat,
   LearningPath,
   LearningPathSummary,
+  Note,
+  NoteWithContext,
   ResourceCandidate,
   TechniqueContent,
 } from '@reps/core';
@@ -43,6 +45,17 @@ export interface ResourceCacheRepository {
   save(key: string, candidates: ResourceCandidate[]): Promise<void>;
 }
 
+export interface NoteRepository {
+  create(note: Note): Promise<Note>;
+  findById(noteId: string): Promise<Note | null>;
+  /** Ordered by timestamp so they line up with the resource they annotate. */
+  listByTechnique(userId: string, techniqueId: string): Promise<Note[]>;
+  /** The notebook view: every note with the technique and skill it belongs to. */
+  listByUser(userId: string): Promise<NoteWithContext[]>;
+  update(noteId: string, body: string): Promise<Note>;
+  remove(noteId: string): Promise<void>;
+}
+
 /** Tracks spend against a provider's daily allowance, per calendar day. */
 export interface QuotaRepository {
   consumedToday(resource: string): Promise<number>;
@@ -52,6 +65,7 @@ export interface QuotaRepository {
 export interface Repositories {
   users: UserRepository;
   paths: PathRepository;
+  notes: NoteRepository;
   techniqueContent: TechniqueContentRepository;
   resourceCache: ResourceCacheRepository;
   quota: QuotaRepository;

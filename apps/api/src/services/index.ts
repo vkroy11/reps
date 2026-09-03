@@ -2,6 +2,7 @@ import type { AiProvider } from '../providers/ai';
 import type { ResourceProvider } from '../providers/resources';
 import type { Repositories } from '../repositories/types';
 import { createContentService, type ContentService } from './content.service';
+import { createNoteService, type NoteService } from './note.service';
 import { createOnboardingService, type OnboardingService } from './onboarding.service';
 import { createPathService, type PathService } from './path.service';
 import { createResourceCurator } from './resource-curator.service';
@@ -12,6 +13,7 @@ export interface Services {
   paths: PathService;
   techniques: TechniqueService;
   content: ContentService;
+  notes: NoteService;
 }
 
 export function createServices(deps: {
@@ -44,5 +46,6 @@ export function createServices(deps: {
     paths,
     techniques,
     content,
+    notes: createNoteService({ repositories: deps.repositories, techniques }),
   };
 }

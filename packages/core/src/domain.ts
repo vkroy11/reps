@@ -98,3 +98,32 @@ export const LearningPathSummarySchema = LearningPathSchema.omit({ techniques: t
   completedCount: z.number().int().nonnegative(),
 });
 export type LearningPathSummary = z.infer<typeof LearningPathSummarySchema>;
+
+/**
+ * A note the learner wrote while practising.
+ *
+ * Notes attach to a technique, and optionally to a specific resource and a
+ * timestamp inside it. That is the whole point: six weeks later you reread
+ * three lines instead of rewatching eight minutes.
+ */
+export const NoteSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  techniqueId: z.string(),
+  /** Set when the note was taken against a particular video or lesson. */
+  resourceId: z.string().nullable(),
+  /** Seconds into that resource. Tapping the note seeks the player here. */
+  timestampSec: z.number().int().nonnegative().nullable(),
+  body: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type Note = z.infer<typeof NoteSchema>;
+
+/** A note plus the technique it belongs to, for the notebook view. */
+export const NoteWithContextSchema = NoteSchema.extend({
+  techniqueTitle: z.string(),
+  pathId: z.string(),
+  skill: z.string(),
+});
+export type NoteWithContext = z.infer<typeof NoteWithContextSchema>;

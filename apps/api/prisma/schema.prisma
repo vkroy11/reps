@@ -20,6 +20,7 @@ model User {
   createdAt DateTime @default(now())
 
   paths LearningPath[]
+  notes Note[]
 }
 
 model LearningPath {
@@ -62,6 +63,7 @@ model Technique {
   path      LearningPath       @relation(fields: [pathId], references: [id], onDelete: Cascade)
   resources Resource[]
   content   TechniqueContent[]
+  notes     Note[]
 
   @@index([pathId, order])
 }
@@ -93,6 +95,26 @@ model TechniqueContent {
   technique Technique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
 
   @@id([techniqueId, format])
+}
+
+/// Notes taken while practising. Deliberately keyed to a technique and,
+/// optionally, to a timestamp inside one of its resources.
+model Note {
+  id           String   @id
+  userId       String
+  techniqueId  String
+  resourceId   String?
+  timestampSec Int?
+  body         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  technique Technique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+
+  /// The notebook reads by user; the technique screen reads by technique.
+  @@index([userId, createdAt])
+  @@index([techniqueId, timestampSec])
 }
 
 /// Resource search results keyed by normalized query hash. This is what makes

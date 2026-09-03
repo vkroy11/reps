@@ -51,6 +51,21 @@ describe('API', () => {
     expect(response.status).toBe(404);
   });
 
+  /**
+   * Found by a live smoke test: body-parser's SyntaxError fell through to the
+   * catch-all and blamed the server for a malformed client request.
+   */
+  it('blames the client, not itself, for unparseable JSON', async () => {
+    const response = await request(app)
+      .post('/api/notes')
+      .set('x-device-id', DEVICE_ID)
+      .set('content-type', 'application/json')
+      .send('{"techniqueId": ');
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('MalformedRequestBody');
+  });
+
   describe('identity', () => {
     it('rejects requests with no device id', async () => {
       const response = await request(app).get('/api/paths');
@@ -185,6 +200,101 @@ describe('API', () => {
         .set('x-device-id', 'device-someone-else-99');
 
       expect(response.status).toBe(404);
+    });
+  });
+
+  describe('notes', () => {
+    async function pathWithTechnique() {
+      const created = await request(app).post('/api/paths').set('x-device-id', DEVICE_ID).send(INPUT);
+
+      return created.body.path;
+    }
+
+    it('writes and lists a note against a technique', async () => {
+      const path = await pathWithTechnique();
+      const technique = path.techniques[0];
+
+      const created = await request(app)
+        .post('/api/notes')
+        .set('x-device-id', DEVICE_ID)
+        .send({
+          techniqueId: technique.id,
+          resourceId: technique.resources[0].id,
+          timestampSec: 222,
+          body: 'keep the ring finger anchored',
+        });
+
+      expect(created.status).toBe(201);
+      expect(created.body.note).toMatchObject({ timestampSec: 222 });
+
+      const listed = await request(app)
+        .get(`/api/notes?techniqueId=${technique.id}`)
+        .set('x-device-id', DEVICE_ID);
+
+      expect(listed.status).toBe(200);
+      expect(listed.body.notes).toHaveLength(1);
+    });
+
+    it('returns the notebook with the technique and skill attached', async () => {
+      const path = await pathWithTechnique();
+      await request(app)
+        .post('/api/notes')
+        .set('x-device-id', DEVICE_ID)
+        .send({ techniqueId: path.techniques[0].id, body: 'a thought' });
+
+      const listed = await request(app).get('/api/notes').set('x-device-id', DEVICE_ID);
+
+      expect(listed.body.notes[0]).toMatchObject({
+        body: 'a thought',
+        techniqueTitle: path.techniques[0].title,
+        skill: 'guitar',
+      });
+    });
+
+    it('edits and deletes a note', async () => {
+      const path = await pathWithTechnique();
+      const created = await request(app)
+        .post('/api/notes')
+        .set('x-device-id', DEVICE_ID)
+        .send({ techniqueId: path.techniques[0].id, body: 'first' });
+
+      const patched = await request(app)
+        .patch(`/api/notes/${created.body.note.id}`)
+        .set('x-device-id', DEVICE_ID)
+        .send({ body: 'second' });
+      expect(patched.body.note.body).toBe('second');
+
+      const deleted = await request(app)
+        .delete(`/api/notes/${created.body.note.id}`)
+        .set('x-device-id', DEVICE_ID);
+      expect(deleted.status).toBe(204);
+
+      const listed = await request(app).get('/api/notes').set('x-device-id', DEVICE_ID);
+      expect(listed.body.notes).toHaveLength(0);
+    });
+
+    it('rejects an empty note body', async () => {
+      const path = await pathWithTechnique();
+
+      const response = await request(app)
+        .post('/api/notes')
+        .set('x-device-id', DEVICE_ID)
+        .send({ techniqueId: path.techniques[0].id, body: '   ' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('ValidationError');
+    });
+
+    it('hides another device\'s notes', async () => {
+      const path = await pathWithTechnique();
+      await request(app)
+        .post('/api/notes')
+        .set('x-device-id', DEVICE_ID)
+        .send({ techniqueId: path.techniques[0].id, body: 'private' });
+
+      const listed = await request(app).get('/api/notes').set('x-device-id', 'device-other-user-77');
+
+      expect(listed.body.notes).toHaveLength(0);
     });
   });
 

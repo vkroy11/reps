@@ -2,6 +2,7 @@ import type {
   GeneratedContentFormat,
   LearningPath,
   LearningPathSummary,
+  Note,
   ResourceCandidate,
   TechniqueContent,
 } from '@reps/core';
@@ -27,6 +28,7 @@ export function createMemoryRepositories(): Repositories {
   const contentByKey = new Map<string, TechniqueContent>();
   const resourceCache = new Map<string, { candidates: ResourceCandidate[]; cachedAt: number }>();
   const quotaByKey = new Map<string, number>();
+  const notesById = new Map<string, Note>();
 
   const today = (): string => new Date().toISOString().slice(0, 10);
   const contentKey = (techniqueId: string, format: GeneratedContentFormat): string =>
@@ -40,6 +42,20 @@ export function createMemoryRepositories(): Repositories {
       techniqueCount: techniques.length,
       completedCount: techniques.filter((technique) => technique.status === 'completed').length,
     };
+  };
+
+  /**
+   * Timestamped notes come first in playback order; notes without a timestamp
+   * sort after them by age, since they belong to the technique as a whole.
+   */
+  const byTimestampThenCreated = (left: Note, right: Note): number => {
+    if (left.timestampSec === null && right.timestampSec === null) {
+      return left.createdAt.localeCompare(right.createdAt);
+    }
+    if (left.timestampSec === null) return 1;
+    if (right.timestampSec === null) return -1;
+
+    return left.timestampSec - right.timestampSec;
   };
 
   return {
@@ -91,6 +107,69 @@ export function createMemoryRepositories(): Repositories {
           // Most recently practised first: that is what the home screen focuses on.
           .sort((left, right) => (savedSeqById.get(right.id) ?? 0) - (savedSeqById.get(left.id) ?? 0))
           .map(toSummary);
+      },
+    },
+
+    notes: {
+      async create(note) {
+        notesById.set(note.id, structuredClone(note));
+
+        return structuredClone(note);
+      },
+
+      async findById(noteId) {
+        const found = notesById.get(noteId);
+
+        return found ? structuredClone(found) : null;
+      },
+
+      async listByTechnique(userId, techniqueId) {
+        return [...notesById.values()]
+          .filter((note) => note.userId === userId && note.techniqueId === techniqueId)
+          .sort(byTimestampThenCreated)
+          .map((note) => structuredClone(note));
+      },
+
+      async listByUser(userId) {
+        const notes = [...notesById.values()]
+          .filter((note) => note.userId === userId)
+          .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+
+        return notes.map((note) => {
+          // Resolve the technique the note hangs off, for the notebook view.
+          for (const path of pathsById.values()) {
+            const technique = path.techniques.find((item) => item.id === note.techniqueId);
+            if (technique) {
+              return {
+                ...structuredClone(note),
+                techniqueTitle: technique.title,
+                pathId: path.id,
+                skill: path.skill,
+              };
+            }
+          }
+
+          return {
+            ...structuredClone(note),
+            techniqueTitle: 'Unknown technique',
+            pathId: '',
+            skill: '',
+          };
+        });
+      },
+
+      async update(noteId, body) {
+        const existing = notesById.get(noteId);
+        if (!existing) throw new Error(`Note '${noteId}' not found`);
+
+        const updated: Note = { ...existing, body, updatedAt: new Date().toISOString() };
+        notesById.set(noteId, updated);
+
+        return structuredClone(updated);
+      },
+
+      async remove(noteId) {
+        notesById.delete(noteId);
       },
     },
 

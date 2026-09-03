@@ -26,3 +26,16 @@ export const ReflectRequestSchema = z.object({
   practiceMinutes: z.number().int().min(0).max(600).optional(),
 });
 export type ReflectRequest = z.infer<typeof ReflectRequestSchema>;
+
+export const CreateNoteRequestSchema = z.object({
+  techniqueId: z.string().min(1),
+  resourceId: z.string().min(1).nullable().optional(),
+  timestampSec: z.number().int().nonnegative().max(86_400).nullable().optional(),
+  body: z.string().trim().min(1).max(2000),
+});
+export type CreateNoteRequest = z.infer<typeof CreateNoteRequestSchema>;
+
+export const UpdateNoteRequestSchema = z.object({
+  body: z.string().trim().min(1).max(2000),
+});
+export type UpdateNoteRequest = z.infer<typeof UpdateNoteRequestSchema>;

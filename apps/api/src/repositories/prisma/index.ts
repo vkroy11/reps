@@ -4,6 +4,8 @@ import {
   ResourceCandidateSchema,
   type LearningPath,
   type LearningPathSummary,
+  type Note,
+  type NoteWithContext,
 } from '@reps/core';
 import { z } from 'zod';
 import { newId } from '../../lib/ids';
@@ -13,6 +15,30 @@ import { toDomainPath, toResourceRow, toTechniqueRow } from './mappers';
 const CandidatesSchema = z.array(ResourceCandidateSchema);
 
 const withTechniques = { techniques: { include: { resources: true } } } as const;
+
+interface NoteRow {
+  id: string;
+  userId: string;
+  techniqueId: string;
+  resourceId: string | null;
+  timestampSec: number | null;
+  body: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+function toDomainNote(row: NoteRow): Note {
+  return {
+    id: row.id,
+    userId: row.userId,
+    techniqueId: row.techniqueId,
+    resourceId: row.resourceId,
+    timestampSec: row.timestampSec,
+    body: row.body,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
 
 export function createPrismaRepositories(prisma: PrismaClient): Repositories {
   const today = (): string => new Date().toISOString().slice(0, 10);
@@ -136,6 +162,64 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
           completedCount: row.techniques.filter((technique) => technique.status === 'completed')
             .length,
         }));
+      },
+    },
+
+    notes: {
+      async create(note) {
+        const row = await prisma.note.create({
+          data: {
+            id: note.id,
+            userId: note.userId,
+            techniqueId: note.techniqueId,
+            resourceId: note.resourceId,
+            timestampSec: note.timestampSec,
+            body: note.body,
+          },
+        });
+
+        return toDomainNote(row);
+      },
+
+      async findById(noteId) {
+        const row = await prisma.note.findUnique({ where: { id: noteId } });
+
+        return row ? toDomainNote(row) : null;
+      },
+
+      async listByTechnique(userId, techniqueId) {
+        const rows = await prisma.note.findMany({
+          where: { userId, techniqueId },
+          // Timestamped notes first, in playback order; untimed ones after.
+          orderBy: [{ timestampSec: 'asc' }, { createdAt: 'asc' }],
+        });
+
+        return rows.map(toDomainNote);
+      },
+
+      async listByUser(userId): Promise<NoteWithContext[]> {
+        const rows = await prisma.note.findMany({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+          include: { technique: { include: { path: { select: { id: true, skill: true } } } } },
+        });
+
+        return rows.map((row) => ({
+          ...toDomainNote(row),
+          techniqueTitle: row.technique.title,
+          pathId: row.technique.path.id,
+          skill: row.technique.path.skill,
+        }));
+      },
+
+      async update(noteId, body) {
+        const row = await prisma.note.update({ where: { id: noteId }, data: { body } });
+
+        return toDomainNote(row);
+      },
+
+      async remove(noteId) {
+        await prisma.note.delete({ where: { id: noteId } });
       },
     },
 
