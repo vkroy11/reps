@@ -212,8 +212,8 @@ export default function TodayScreen() {
               summary={summary}
               active={own.techniques.find((technique) => technique.status === 'active') ?? null}
               streak={streak}
-              onStart={(techniqueId) => router.push(`/practice/${techniqueId}`)}
-              onOpen={(techniqueId) => router.push(`/technique/${techniqueId}`)}
+              onStart={(techniqueId) => router.push(`/technique/${techniqueId}`)}
+              onOpen={() => router.push(`/(tabs)/path`)}
               testID={`hero-page-${summary.id}`}
             />
           );
