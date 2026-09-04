@@ -1,6 +1,6 @@
-import type { WeekDay } from '@reps/core';
+import type { LocalDay, WeekDay } from '@reps/core';
 import { Text, color, radius, space } from '@reps/ui';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 const LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
 
@@ -20,6 +20,9 @@ function dotColor(status: WeekDay['status']): string {
 
 export interface WeekStripProps {
   week: WeekDay[];
+  /** Opens that day's sessions. Omit to leave the strip inert. */
+  onSelectDay?: (day: LocalDay) => void;
+  selectedDay?: LocalDay | null;
 }
 
 /**
@@ -33,14 +36,25 @@ export interface WeekStripProps {
  * A rest day gets no dot at all rather than a grey one - somebody on a
  * five-day plan should not see two failures every weekend.
  */
-export function WeekStrip({ week }: WeekStripProps) {
+export function WeekStrip({ week, onSelectDay, selectedDay }: WeekStripProps) {
   return (
     <View style={styles.row} accessibilityLabel="Your last seven days">
       {week.map((day) => (
-        <View
+        <Pressable
           key={day.day}
-          style={[styles.column, day.isToday && styles.today]}
+          // A day with nothing on it has nothing to open, so it stays inert
+          // rather than offering a panel that would say "no sessions".
+          disabled={!onSelectDay || day.minutes === 0}
+          onPress={() => onSelectDay?.(day.day)}
+          accessibilityRole={onSelectDay && day.minutes > 0 ? 'button' : undefined}
+          accessibilityState={{ selected: day.day === selectedDay }}
+          style={[
+            styles.column,
+            day.isToday && styles.today,
+            day.day === selectedDay && styles.selected,
+          ]}
           accessibilityLabel={`${LETTERS[day.weekday]}, ${describe(day)}`}
+          testID={`week-day-${day.day}`}
         >
           <Text
             variant="overline"
@@ -54,7 +68,7 @@ export function WeekStrip({ week }: WeekStripProps) {
             </Text>
           </View>
           <View style={[styles.dot, { backgroundColor: dotColor(day.status) }]} />
-        </View>
+        </Pressable>
       ))}
     </View>
   );
@@ -94,6 +108,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.chip,
   },
   today: { backgroundColor: color.surfaceCard },
+  selected: { backgroundColor: color.brandSoft },
   disc: {
     width: 31,
     height: 31,

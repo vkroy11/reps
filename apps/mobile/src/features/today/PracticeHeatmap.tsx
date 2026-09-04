@@ -21,6 +21,8 @@ const CELL = 14;
 const CELL_GAP = 3;
 /** Half a year. Past this the squares stop meaning anything individually. */
 const MAX_WEEKS = 26;
+/** Columns a month needs before its label fits over them. */
+const MIN_LABEL_COLUMNS = 2;
 
 /**
  * How many weeks fit in the space available, so the grid fills its card.
@@ -61,9 +63,16 @@ export function PracticeHeatmap({ grid }: PracticeHeatmapProps) {
               key={`${month.label}-${index}`}
               variant="overline"
               tone="textSecondary"
+              numberOfLines={1}
               style={{ flex: month.columns }}
             >
-              {month.label}
+              {/*
+                A month that owns one 14pt column has no room for a three-letter
+                label, and printing it anyway makes it collide with the next
+                one - "MAYJUN". The run is still visible in the squares; only
+                its name is dropped.
+              */}
+              {month.columns < MIN_LABEL_COLUMNS ? '' : month.label}
             </Text>
           ))}
         </View>

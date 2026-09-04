@@ -6,6 +6,7 @@ import type {
   Resource,
   Technique,
 } from '@reps/core';
+import { toLocalDay } from '@reps/core';
 import { fireEvent } from '@testing-library/react-native';
 import TodayScreen from '../src/app/(tabs)/index';
 import { renderScreen } from './support/render-screen';
@@ -45,6 +46,7 @@ let mockEntries: {
   confidence: Confidence;
 }[] = [];
 let mockNotes: NoteWithContext[] = [];
+let mockHistoryLoading = false;
 
 jest.mock('../src/features/progress/useStreak', () => {
   const core = jest.requireActual('@reps/core');
@@ -56,7 +58,7 @@ jest.mock('../src/features/progress/useStreak', () => {
       entries: mockEntries,
       streak: core.streakFrom(mockEntries, core.today()),
       error: null,
-      loading: false,
+      loading: mockHistoryLoading,
       reload: jest.fn(),
     }),
     useWeek: (entries: unknown[], dailyMinutes: number, daysPerWeek: number) =>
@@ -184,6 +186,7 @@ describe('TodayScreen', () => {
     mockPathState = { path: guitarPath, loading: false };
     mockEntries = [];
     mockNotes = [];
+    mockHistoryLoading = false;
   });
 
   describe('the hero', () => {
@@ -370,6 +373,26 @@ describe('TodayScreen', () => {
 
       expect(getByText(/2 sessions$/)).toBeOnTheScreen();
     });
+
+    /**
+     * A grid of empty squares on somebody's first day reads as a wall of
+     * missed days they never had a chance to fill.
+     */
+    it('shows no heatmap until there is a history to draw', async () => {
+      const { queryByText } = await renderScreen(<TodayScreen />);
+
+      expect(queryByText('The whole path')).toBeNull();
+    });
+
+    it('stands in for the heatmap while the history is loading', async () => {
+      mockHistoryLoading = true;
+
+      const { getByText, queryByText } = await renderScreen(<TodayScreen />);
+
+      expect(getByText('The whole path')).toBeOnTheScreen();
+      // No count, because it is not known yet.
+      expect(queryByText(/sessions$/)).toBeNull();
+    });
   });
 
   describe('the notes section', () => {
@@ -506,6 +529,64 @@ describe('TodayScreen', () => {
       const { queryByText } = await renderScreen(<TodayScreen />);
 
       expect(queryByText('Pick up where you stopped')).toBeNull();
+    });
+  });
+
+  describe('opening a day in the week strip', () => {
+    beforeEach(() => {
+      mockEntries = [entryDaysAgo(1, 'struggling'), entryDaysAgo(1, 'solid'), entryDaysAgo(4)];
+    });
+
+    it('says what was practised, for how long, and how it went', async () => {
+      const { getByTestId, getByText } = await renderScreen(<TodayScreen />);
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const key = toLocalDay(yesterday);
+
+      await fireEvent.press(getByTestId(`week-day-${key}`));
+
+      // Two sessions on that day, summed in the heading.
+      expect(getByText(new RegExp('· 40 min$'))).toBeOnTheScreen();
+      expect(getByText('Struggling')).toBeOnTheScreen();
+      expect(getByText('Solid')).toBeOnTheScreen();
+    });
+
+    /** The strip already resolves ids to titles nowhere else, so it must here. */
+    it('names the technique rather than showing its id', async () => {
+      const { getByTestId, getAllByText } = await renderScreen(<TodayScreen />);
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      await fireEvent.press(getByTestId(`week-day-${toLocalDay(yesterday)}`));
+
+      // Both sessions were on tec_2, which is Chord transitions.
+      expect(getAllByText('Chord transitions').length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('closes again, from the panel or by tapping the day twice', async () => {
+      const { getByTestId, queryByTestId } = await renderScreen(<TodayScreen />);
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const key = toLocalDay(yesterday);
+
+      await fireEvent.press(getByTestId(`week-day-${key}`));
+      await fireEvent.press(getByTestId('day-panel-close'));
+      expect(queryByTestId('day-panel-close')).toBeNull();
+
+      await fireEvent.press(getByTestId(`week-day-${key}`));
+      await fireEvent.press(getByTestId(`week-day-${key}`));
+      expect(queryByTestId('day-panel-close')).toBeNull();
+    });
+
+    /** A day with nothing on it would open a panel that says nothing. */
+    it('ignores a day with no practice', async () => {
+      const { getByTestId, queryByTestId } = await renderScreen(<TodayScreen />);
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
+      await fireEvent.press(getByTestId(`week-day-${toLocalDay(threeDaysAgo)}`));
+
+      expect(queryByTestId('day-panel-close')).toBeNull();
     });
   });
 

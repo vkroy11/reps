@@ -1,20 +1,24 @@
 import {
+  entriesOn,
   heatmap,
   masteryOf,
   resumePoints,
   today,
+  toLocalDay,
   weekStats,
+  type LocalDay,
   type NoteWithContext,
   type ResumePoint,
 } from '@reps/core';
 import { Button, Card, GradientPanel, PipLogo, Text, color, space, useBreakpoint } from '@reps/ui';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNotebook } from '../../features/notes/useNotes';
 import { usePath, usePathList } from '../../features/paths/usePaths';
 import { usePracticeHistory, useWeek } from '../../features/progress/useStreak';
+import { DayPanel } from '../../features/today/DayPanel';
 import { HeroPage } from '../../features/today/HeroPage';
 import { HeroPager } from '../../features/today/HeroPager';
 import { InsightTiles } from '../../features/today/InsightTiles';
@@ -70,8 +74,9 @@ export default function TodayScreen() {
 
   const { paths, focusedId, loading: listLoading, error: listError, reload } = usePathList();
   const { path, loading: pathLoading } = usePath(focusedId);
-  const { entries, streak } = usePracticeHistory();
+  const { entries, streak, loading: historyLoading } = usePracticeHistory();
   const { notes } = useNotebook();
+  const [openDay, setOpenDay] = useState<LocalDay | null>(null);
 
   const focusedSummary = paths.find((item) => item.id === focusedId) ?? null;
   const dailyMinutes = focusedSummary?.dailyMinutes ?? 20;
@@ -89,8 +94,14 @@ export default function TodayScreen() {
   }, [listLoading, listError, paths.length, reconcileOnboarded]);
 
   const contentWidth = Math.min(width, isWide ? WIDE_MAX : PHONE_MAX);
-  // The panel bleeds to the edges, so a page is the whole panel.
-  const pageWidth = Math.min(width, PHONE_MAX);
+  /*
+    On a phone the panel bleeds to the screen edges, so a page is the whole
+    panel. On a wide layout it sits in the main column, so a page is that
+    column - which keeps the hero and the panels beneath it on one left edge.
+  */
+  const pageWidth = isWide
+    ? contentWidth - SIDE_COLUMN - space.xl - space.lg * 2
+    : Math.min(width, PHONE_MAX);
 
   const stats = useMemo(() => weekStats(week, entries, daysPerWeek), [week, entries, daysPerWeek]);
 
@@ -104,6 +115,22 @@ export default function TodayScreen() {
       dailyMinutes,
     });
   }, [entries, isWide, contentWidth, dailyMinutes]);
+
+  const dayEntries = useMemo(
+    () => (openDay === null ? [] : entriesOn(entries, openDay)),
+    [entries, openDay],
+  );
+  const dayNotes = useMemo(
+    () =>
+      openDay === null
+        ? []
+        : notes.filter((item) => {
+            const at = new Date(item.createdAt);
+
+            return !Number.isNaN(at.getTime()) && toLocalDay(at) === openDay;
+          }),
+    [notes, openDay],
+  );
 
   const said = useMemo(() => notes.slice(0, SAID_LIMIT), [notes]);
   const resume = useMemo(() => resumePoints(notes, RESUME_LIMIT), [notes]);
@@ -221,11 +248,35 @@ export default function TodayScreen() {
 
       <Section
         title="The whole path"
-        meta={`${grid.weeks} weeks · ${grid.sessions} ${grid.sessions === 1 ? 'session' : 'sessions'}`}
+        meta={
+          historyLoading
+            ? null
+            : `${grid.weeks} weeks · ${grid.sessions} ${grid.sessions === 1 ? 'session' : 'sessions'}`
+        }
       >
-        {entries.length === 0 && !listError ? <HeatmapSkeleton /> : <PracticeHeatmap grid={grid} />}
+        {/*
+          Absent until there is a history to draw, rather than showing a grid
+          of empty squares to somebody on their first day - that reads as a
+          wall of missed days they never had a chance to fill.
+        */}
+        {historyLoading ? (
+          <HeatmapSkeleton />
+        ) : entries.length === 0 ? null : (
+          <PracticeHeatmap grid={grid} />
+        )}
       </Section>
     </>
+  );
+
+  const gradientHero = (
+    <GradientPanel
+      from={color.brandSoft}
+      to={color.surfacePage}
+      bottomRadius={34}
+      style={[styles.gradient, { maxWidth: pageWidth }]}
+    >
+      {hero}
+    </GradientPanel>
   );
 
   const aboutTheWork = (
@@ -257,9 +308,25 @@ export default function TodayScreen() {
     <View style={styles.screen}>
       <View style={[styles.fixed, { paddingTop: insets.top + space.sm, maxWidth: contentWidth }]}>
         <TodayHeader dateLabel={todayLabel()} streak={streak.current} />
-        <View style={styles.strip}>
-          <WeekStrip week={week} />
+        <View style={[styles.strip, isWide && styles.stripWide]}>
+          <WeekStrip
+            week={week}
+            selectedDay={openDay}
+            onSelectDay={(day) => setOpenDay((current) => (current === day ? null : day))}
+          />
         </View>
+
+        {openDay === null || dayEntries.length === 0 ? null : (
+          <DayPanel
+            day={openDay}
+            entries={dayEntries}
+            notes={dayNotes}
+            titleOf={(techniqueId) =>
+              path?.techniques.find((technique) => technique.id === techniqueId)?.title ?? null
+            }
+            onClose={() => setOpenDay(null)}
+          />
+        )}
       </View>
 
       <ScrollView
@@ -278,29 +345,24 @@ export default function TodayScreen() {
           </Card>
         ) : null}
 
-        <GradientPanel
-          from={color.brandSoft}
-          to={color.surfacePage}
-          bottomRadius={34}
-          style={[styles.gradient, { maxWidth: pageWidth }]}
-        >
-          {hero}
-        </GradientPanel>
-
         {isWide ? (
           <View style={[styles.columns, { maxWidth: contentWidth }]}>
             <View style={styles.mainColumn}>
+              {gradientHero}
               {aboutTheHobby}
               {aboutTheWork}
             </View>
             <View style={styles.sideColumn}>{aboutTheWeek}</View>
           </View>
         ) : (
-          <View style={[styles.stack, { maxWidth: contentWidth }]}>
-            {aboutTheHobby}
-            {aboutTheWeek}
-            {aboutTheWork}
-          </View>
+          <>
+            {gradientHero}
+            <View style={[styles.stack, { maxWidth: contentWidth }]}>
+              {aboutTheHobby}
+              {aboutTheWeek}
+              {aboutTheWork}
+            </View>
+          </>
         )}
       </ScrollView>
     </View>
@@ -311,11 +373,14 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.surfacePage },
   fixed: { width: '100%', alignSelf: 'center' },
   strip: { paddingHorizontal: space.md, paddingBottom: space.sm },
+  /* Seven flex columns across 1080 puts 150 points between day discs, which
+     stops reading as a week. Capped and left-aligned with the content. */
+  stripWide: { width: '100%', maxWidth: 460, paddingHorizontal: space.lg },
   scroll: { flex: 1 },
   /* No horizontal padding: the gradient runs to the screen edges, and each
      section supplies its own gutter. */
   content: { alignItems: 'center' },
-  gradient: { width: '100%' },
+  gradient: { width: '100%', alignSelf: 'center' },
   stack: { width: '100%' },
   columns: { width: '100%', flexDirection: 'row', gap: space.xl, alignItems: 'flex-start' },
   mainColumn: { flex: 1, minWidth: 0 },
