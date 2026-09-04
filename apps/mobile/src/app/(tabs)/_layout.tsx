@@ -1,12 +1,23 @@
-import { color, font, space } from '@reps/ui';
+import { color, font, space, useBreakpoint } from '@reps/ui';
 import { Tabs } from 'expo-router';
 import { TabIcon } from '../../components/tab-icons';
 
 /**
  * Four tabs, deliberately. Today is the only screen with a decision on it;
  * the rest are places to look things up. No feed, no leagues, no shop.
+ *
+ * From 960px up the bar moves to the left edge and becomes a rail. Bottom tabs
+ * on a desktop window put navigation as far from the pointer as the screen
+ * allows, and waste the one axis a wide window has to spare - so the same four
+ * destinations change position rather than changing what they are.
+ *
+ * `tabBarPosition` is honoured by the navigator itself, so this is a prop
+ * change rather than a second navigator. A custom sidebar would have meant
+ * reimplementing focus, history and deep links.
  */
 export default function TabLayout() {
+  const { isWide } = useBreakpoint();
+
   return (
     <Tabs
       // tabBarIcon hands back a ColorValue, which may be an opaque native
@@ -16,13 +27,25 @@ export default function TabLayout() {
         tabBarActiveTintColor: color.brand,
         tabBarInactiveTintColor: color.iconDecorative,
         sceneStyle: { backgroundColor: color.surfacePage },
-        tabBarStyle: {
-          backgroundColor: color.surfaceCard,
-          borderTopColor: color.borderDefault,
-          height: 76,
-          paddingTop: space.sm,
+        tabBarPosition: isWide ? 'left' : 'bottom',
+        tabBarStyle: isWide
+          ? {
+              backgroundColor: color.surfaceCard,
+              borderRightColor: color.borderDefault,
+              borderRightWidth: 1,
+              width: 216,
+              paddingTop: space.lg,
+            }
+          : {
+              backgroundColor: color.surfaceCard,
+              borderTopColor: color.borderDefault,
+              height: 76,
+              paddingTop: space.sm,
+            },
+        tabBarLabelStyle: {
+          fontFamily: font.extrabold,
+          fontSize: isWide ? 14 : 11,
         },
-        tabBarLabelStyle: { fontFamily: font.extrabold, fontSize: 11 },
       }}
     >
       <Tabs.Screen

@@ -1,5 +1,15 @@
 import type { NoteWithContext } from '@reps/core';
-import { Button, Card, PipLogo, Skeleton, Text, color, radius, space } from '@reps/ui';
+import {
+  Button,
+  Card,
+  PipLogo,
+  Skeleton,
+  Text,
+  color,
+  radius,
+  space,
+  useBreakpoint,
+} from '@reps/ui';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -26,6 +36,7 @@ const FILTERS: Filter[] = ['All', 'Video', 'Technique'];
 export default function NotesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isWide } = useBreakpoint();
   const { notes, error, loading, reload } = useNotebook();
   const [filter, setFilter] = useState<Filter>('All');
 
@@ -47,7 +58,7 @@ export default function NotesScreen() {
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[
-        styles.content,
+        isWide ? styles.contentWide : styles.content,
         { paddingTop: insets.top + space.base, paddingBottom: insets.bottom + space.xxl },
       ]}
     >
@@ -120,9 +131,14 @@ export default function NotesScreen() {
         </Text>
       ) : null}
 
-      <View style={styles.list}>
+      {/* Two columns from 960px up: one column of cards on a desktop window
+          leaves two thirds of it empty, and notes are short enough to scan
+          side by side. */}
+      <View style={[styles.list, isWide && styles.listWide]}>
         {visible.map((note) => (
-          <NoteCard key={note.id} note={note} level={null} onPress={() => open(note)} />
+          <View key={note.id} style={isWide ? styles.cell : undefined}>
+            <NoteCard note={note} level={null} onPress={() => open(note)} />
+          </View>
         ))}
       </View>
     </ScrollView>
@@ -151,6 +167,12 @@ const styles = StyleSheet.create({
     maxWidth: 640,
     alignSelf: 'center',
   },
+  contentWide: {
+    paddingHorizontal: space.lg,
+    width: '100%',
+    maxWidth: 1080,
+    alignSelf: 'center',
+  },
   count: { marginTop: space.xs },
   filters: { flexDirection: 'row', gap: space.sm, marginTop: space.base },
   filter: {
@@ -166,4 +188,7 @@ const styles = StyleSheet.create({
   gap: { marginTop: space.sm },
   empty: { alignItems: 'center', gap: space.base, paddingTop: space.xxl },
   list: { gap: space.md, marginTop: space.base },
+  listWide: { flexDirection: 'row', flexWrap: 'wrap' },
+  // Half the row minus half the gap, so two fit per line at any width.
+  cell: { flexGrow: 1, flexBasis: '47%', minWidth: 0 },
 });

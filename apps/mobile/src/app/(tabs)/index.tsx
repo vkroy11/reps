@@ -1,6 +1,16 @@
 import { pathProgress } from '@reps/client';
 import type { LearningPathSummary, Technique } from '@reps/core';
-import { Button, Card, PipLogo, ProgressBar, Skeleton, Text, color, space } from '@reps/ui';
+import {
+  Button,
+  Card,
+  PipLogo,
+  ProgressBar,
+  Skeleton,
+  Text,
+  color,
+  space,
+  useBreakpoint,
+} from '@reps/ui';
 import { useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -27,6 +37,7 @@ import { useApp } from '../../providers/app-provider';
 export default function TodayScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isWide } = useBreakpoint();
   const { focusPath, reconcileOnboarded } = useApp();
   const { paths, focusedId, loading: listLoading, error: listError, reload } = usePathList();
   const { path } = usePath(focusedId);
@@ -58,7 +69,12 @@ export default function TodayScreen() {
   return (
     <View style={styles.screen}>
       {/* One number in the HUD, on the right, and nothing else competing with it. */}
-      <View style={[styles.hud, { paddingTop: insets.top + space.sm }]}>
+      <View
+        style={[
+          isWide ? styles.hudWide : styles.hud,
+          { paddingTop: insets.top + space.sm },
+        ]}
+      >
         <PipLogo size={32} />
         <Text variant="heading" style={styles.brand}>
           Reps
@@ -68,7 +84,10 @@ export default function TodayScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xl }]}
+        contentContainerStyle={[
+          isWide ? styles.contentWide : styles.content,
+          { paddingBottom: insets.bottom + space.xl },
+        ]}
       >
         {listLoading ? (
           <>
@@ -107,33 +126,41 @@ export default function TodayScreen() {
         ) : null}
 
         {paths.length > 0 ? (
-          <>
-            {/* The week comes before the hero: how the week is going is
-                context for the decision, not a reward after it. */}
-            <WeekStrip week={week} />
-            <Text variant="caption" tone="textSecondary" center style={styles.weekLine}>
-              {streak.current === 0
-                ? 'No streak yet. One session starts it.'
-                : streak.practisedToday
-                  ? `${streak.current} day streak — today is in.`
-                  : `${streak.current} day streak. Practise today to keep it.`}
-            </Text>
+          /*
+            Wide puts the week beside the hero rather than above it. Stacked,
+            the CTA is pushed below the fold on a short desktop window - and
+            the week is context for the decision, not something to scroll past
+            on the way to it.
+          */
+          <View style={isWide ? styles.columns : undefined}>
+            <View style={isWide ? styles.sideColumn : undefined}>
+              <WeekStrip week={week} />
+              <Text variant="caption" tone="textSecondary" center style={styles.weekLine}>
+                {streak.current === 0
+                  ? 'No streak yet. One session starts it.'
+                  : streak.practisedToday
+                    ? `${streak.current} day streak — today is in.`
+                    : `${streak.current} day streak. Practise today to keep it.`}
+              </Text>
+            </View>
 
-            <HeroPager
-              paths={paths}
-              initialIndex={focusedIndex}
-              onFocus={focusPath}
-              onAddPath={() => router.push('/onboarding/skill')}
-              renderPage={(summary) => (
-                <HeroPage
-                  summary={summary}
-                  active={summary.id === focusedId ? active : null}
-                  onStart={(techniqueId) => router.push(`/practice/${techniqueId}`)}
-                  onOpen={(techniqueId) => router.push(`/technique/${techniqueId}`)}
-                />
-              )}
-            />
-          </>
+            <View style={isWide ? styles.mainColumn : undefined}>
+              <HeroPager
+                paths={paths}
+                initialIndex={focusedIndex}
+                onFocus={focusPath}
+                onAddPath={() => router.push('/onboarding/skill')}
+                renderPage={(summary) => (
+                  <HeroPage
+                    summary={summary}
+                    active={summary.id === focusedId ? active : null}
+                    onStart={(techniqueId) => router.push(`/practice/${techniqueId}`)}
+                    onOpen={(techniqueId) => router.push(`/technique/${techniqueId}`)}
+                  />
+                )}
+              />
+            </View>
+          </View>
         ) : null}
       </ScrollView>
     </View>
@@ -250,6 +277,16 @@ const styles = StyleSheet.create({
     maxWidth: 640,
     alignSelf: 'center',
   },
+  hudWide: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingHorizontal: space.lg,
+    paddingBottom: space.sm,
+    width: '100%',
+    maxWidth: 1080,
+    alignSelf: 'center',
+  },
   brand: { letterSpacing: -0.3 },
   spacer: { flex: 1 },
   content: {
@@ -259,6 +296,16 @@ const styles = StyleSheet.create({
     maxWidth: 640,
     alignSelf: 'center',
   },
+  contentWide: {
+    paddingHorizontal: space.lg,
+    gap: space.sm,
+    width: '100%',
+    maxWidth: 1080,
+    alignSelf: 'center',
+  },
+  columns: { flexDirection: 'row', gap: space.xl, alignItems: 'flex-start' },
+  sideColumn: { width: 300, flexShrink: 0 },
+  mainColumn: { flex: 1, minWidth: 0 },
   gap: { marginTop: space.sm },
   empty: { alignItems: 'center', gap: space.base, paddingTop: space.xxl },
   weekLine: { marginBottom: space.sm },
