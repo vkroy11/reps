@@ -13,6 +13,7 @@ import { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { FrameMeter } from '../features/dev/FrameMeter';
 import { AppProvider } from '../providers/app-provider';
 
 // Held until the fonts resolve so text never reflows on first paint - the
@@ -49,6 +50,13 @@ export default function RootLayout() {
               contentStyle: { backgroundColor: color.surfacePage },
             }}
           />
+          {/*
+            Above the navigator so it floats over every screen, and only in
+            development. FPS has to be read on real hardware - a simulator
+            renders in software and the browser runs Reanimated through a
+            different path, so neither gives a number worth quoting.
+          */}
+          {__DEV__ ? <FrameMeter /> : null}
           <StatusBar style="dark" />
         </AppProvider>
       </SafeAreaProvider>
