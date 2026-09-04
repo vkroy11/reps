@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { KeyboardAvoider } from './KeyboardAvoider';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -65,7 +66,13 @@ export function ActionSheet({
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <View style={[styles.root, isWide && styles.rootWide]}>
+      {/*
+        The sheet sits at the bottom of the screen, which is exactly where the
+        keyboard appears - so a sheet containing a field (the note composer) has
+        to lift with it. The avoider goes inside the Modal because a Modal is a
+        separate native window and is not affected by anything outside it.
+      */}
+      <KeyboardAvoider style={[styles.root, isWide && styles.rootWide]}>
         <Animated.View style={[styles.scrimFill, scrimStyle]}>
           <Pressable
             style={styles.scrimFill}
@@ -83,7 +90,7 @@ export function ActionSheet({
           {isWide ? null : <View style={styles.grab} />}
           {children}
         </Animated.View>
-      </View>
+      </KeyboardAvoider>
     </Modal>
   );
 }

@@ -1,11 +1,11 @@
 import { flowProgress, onboardingFlow, type OnboardingFlowStep } from '@reps/client';
 import {
   Button,
+  KeyboardAvoider,
   PipMascot,
   ProgressRing,
   Text,
   accentOn,
-  hit,
   panels,
   radius,
   space,
@@ -28,8 +28,15 @@ export interface ImmersiveScaffoldProps {
   pipAside: string;
   /** Pip thinks while suggestions load, idles otherwise. */
   thinking?: boolean;
-  canContinue: boolean;
-  onContinue: () => void;
+  /**
+   * Omit both to render no CTA at all.
+   *
+   * A step whose only way forward is tapping an answer should not show a
+   * button that can never enable: a permanently greyed-out Continue reads as
+   * something broken, or as a step the learner has failed to satisfy.
+   */
+  canContinue?: boolean;
+  onContinue?: () => void;
   continueLabel?: string;
   children: React.ReactNode;
 }
@@ -49,7 +56,7 @@ export function ImmersiveScaffold({
   aside,
   pipAside,
   thinking = false,
-  canContinue,
+  canContinue = false,
   onContinue,
   continueLabel = 'Continue',
   children,
@@ -61,7 +68,11 @@ export function ImmersiveScaffold({
   const position = onboardingFlow.indexOf(step);
 
   return (
-    <View style={[styles.screen, { backgroundColor: panel.bg, paddingTop: insets.top + space.sm }]}>
+    // The keyboard container is the screen's own outermost view, which is the
+    // only placement KeyboardAvoidingView actually works from.
+    <KeyboardAvoider
+      style={[styles.screen, { backgroundColor: panel.bg, paddingTop: insets.top + space.sm }]}
+    >
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
@@ -86,9 +97,6 @@ export function ImmersiveScaffold({
         contentContainerStyle={styles.bodyContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
-        // iOS insets the scroll view by the keyboard, so a field low on a long
-        // step scrolls into view instead of sitting under it.
-        automaticallyAdjustKeyboardInsets
       >
         <View style={styles.pipRow}>
           <View style={[styles.pipHalo, { backgroundColor: panel.ghost }]}>
@@ -111,18 +119,20 @@ export function ImmersiveScaffold({
         {children}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + space.base }]}>
-        <Button
-          label={continueLabel}
-          onPress={onContinue}
-          disabled={!canContinue}
-          // On the brand panel the fill inverts: a brand button on brand is
-          // invisible, so the CTA becomes white with brand text.
-          variant={panel.onDark ? 'inverse' : 'primary'}
-          testID="onboarding-continue"
-        />
-      </View>
-    </View>
+      {onContinue ? (
+        <View style={[styles.footer, { paddingBottom: insets.bottom + space.base }]}>
+          <Button
+            label={continueLabel}
+            onPress={onContinue}
+            disabled={!canContinue}
+            // On the brand panel the fill inverts: a brand button on brand is
+            // invisible, so the CTA becomes white with brand text.
+            variant={panel.onDark ? 'inverse' : 'primary'}
+            testID="onboarding-continue"
+          />
+        </View>
+      ) : null}
+    </KeyboardAvoider>
   );
 }
 
@@ -169,7 +179,6 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: space.base,
     paddingTop: space.md,
-    minHeight: hit.cta + space.lg,
     width: '100%',
     maxWidth: 640,
     alignSelf: 'center',

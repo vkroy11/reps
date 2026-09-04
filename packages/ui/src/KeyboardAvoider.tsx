@@ -1,4 +1,11 @@
-import { KeyboardAvoidingView, Platform, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 
 export interface KeyboardAvoiderProps {
   children: React.ReactNode;
@@ -6,31 +13,32 @@ export interface KeyboardAvoiderProps {
 }
 
 /**
- * Keeps the focused input and the sticky CTA above the keyboard.
+ * Screen container that keeps the focused input and the sticky CTA above the
+ * keyboard.
  *
- * The two platforms need opposite things, which is why this is a component and
- * not a prop passed around:
+ * This has to be the screen's own outermost view, not a wrapper around the
+ * navigator. `KeyboardAvoidingView` works by adding padding (or shrinking its
+ * own height) and letting its children reflow; a navigator's screens are laid
+ * out inside their own full-height containers, so padding applied above them
+ * changes nothing that the content can see. That was the first attempt, and it
+ * did nothing.
  *
- *   - **iOS** gives the app no help at all. The window keeps its full height
- *     and the keyboard covers the bottom, so a `padding` inset is the only way
- *     the footer button stays reachable.
- *   - **Android** already resizes the window, because Expo's default
- *     `android.softwareKeyboardLayoutMode` is `resize`. Wrapping it in a second
- *     avoiding view double-counts the inset and leaves a keyboard-sized gap
- *     under the content, so this deliberately does nothing there.
- *   - **Web** has no software keyboard to avoid.
- *
- * Mounted once around the navigator, so no screen has to remember it. Screens
- * still need `keyboardShouldPersistTaps="handled"` on a scroll view if a tap
- * target sits beside the input - that one is per-screen behaviour, not layout.
+ * `behavior` per the React Native docs: `padding` on iOS, `height` on Android.
+ * Android also resizes the window itself, but the two agree rather than fight -
+ * `height` measures the space that is actually left.
  */
 export function KeyboardAvoider({ children, style }: KeyboardAvoiderProps) {
-  if (Platform.OS !== 'ios') {
-    return <>{children}</>;
+  // Still a real View on web, not a fragment: this is the screen's container,
+  // so dropping the style takes the layout and the panel colour with it.
+  if (Platform.OS === 'web') {
+    return <View style={[styles.fill, style]}>{children}</View>;
   }
 
   return (
-    <KeyboardAvoidingView behavior="padding" style={[styles.fill, style]}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={[styles.fill, style]}
+    >
       {children}
     </KeyboardAvoidingView>
   );

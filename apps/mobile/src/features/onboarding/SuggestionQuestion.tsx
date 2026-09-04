@@ -105,8 +105,13 @@ export function SuggestionQuestion({
       aside={aside}
       pipAside={pipAside}
       thinking={loading}
+      /*
+        No CTA until the free-text field is open. Tapping a suggestion advances
+        by itself, so a Continue button sitting there greyed out for the whole
+        step would only ever look like something the learner had failed to do.
+      */
       canContinue={answer.length >= MIN_ANSWER}
-      onContinue={() => onSubmit(answer)}
+      onContinue={customOpen ? () => onSubmit(answer) : undefined}
     >
       {loading ? <LoadingSuggestions panel={panel} skill={skill} /> : null}
 

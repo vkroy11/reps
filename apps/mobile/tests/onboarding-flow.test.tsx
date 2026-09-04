@@ -178,6 +178,25 @@ describe('the immersive questionnaire', () => {
       expect(mockPatchDraft).toHaveBeenCalledWith({ goal: 'play at an open mic' });
     });
 
+    /**
+     * A Continue that can never enable reads as a step the learner has failed
+     * to satisfy, so it is not rendered at all until there is something for it
+     * to submit.
+     */
+    it('shows no Continue button while the only way forward is a card', async () => {
+      const { queryByTestId } = await renderScreen(<GoalScreen />);
+
+      expect(queryByTestId('onboarding-continue')).toBeNull();
+    });
+
+    it('brings the Continue button in with the free-text field', async () => {
+      const { getByTestId } = await renderScreen(<GoalScreen />);
+
+      await fireEvent.press(getByTestId('option-custom'));
+
+      expect(getByTestId('onboarding-continue')).toBeOnTheScreen();
+    });
+
     it('offers nothing to tap while the options are still loading', async () => {
       mockSuggestions = { data: null, loading: true, error: null };
       const { queryByTestId } = await renderScreen(<GoalScreen />);

@@ -5,7 +5,7 @@ import { useFonts } from 'expo-font';
 import { Nunito_400Regular } from '@expo-google-fonts/nunito/400Regular';
 import { Nunito_600SemiBold } from '@expo-google-fonts/nunito/600SemiBold';
 import { Nunito_800ExtraBold } from '@expo-google-fonts/nunito/800ExtraBold';
-import { KeyboardAvoider, color } from '@reps/ui';
+import { color } from '@reps/ui';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -39,19 +39,16 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AppProvider>
           {/*
-            Wrapped once here rather than per screen. Every text input in the
-            app - the skill field, a free-text answer, the note composer - sits
-            below the fold on its screen, and each one previously went under
-            the keyboard on iOS along with the CTA beneath it.
+            Keyboard avoidance is per screen, not here. A KeyboardAvoidingView
+            around the navigator pads a container the screens are laid out
+            inside, so nothing they render ever reflows - see KeyboardAvoider.
           */}
-          <KeyboardAvoider>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: color.surfacePage },
-              }}
-            />
-          </KeyboardAvoider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: color.surfacePage },
+            }}
+          />
           <StatusBar style="dark" />
         </AppProvider>
       </SafeAreaProvider>

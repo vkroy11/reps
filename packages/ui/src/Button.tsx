@@ -27,6 +27,15 @@ export interface ButtonProps {
 const EDGE = 4;
 const PRESSED_EDGE = 2;
 
+/**
+ * The lower edge of a disabled button.
+ *
+ * A mid grey rather than `borderDefault`, which is #E2E8F0 and read as a white
+ * lip on the brand-blue onboarding panel. This is grey against every panel we
+ * have, light or saturated.
+ */
+const DISABLED_EDGE = color.iconDecorative;
+
 type LabelTone = 'textOnBrand' | 'brand' | 'textSecondary';
 
 /**
@@ -112,7 +121,7 @@ export function Button({
               backgroundColor: disabled
                 ? (tokens.disabledFill ?? color.surfaceLocked)
                 : tokens.fill,
-              borderBottomColor: disabled ? color.borderDefault : tokens.edge,
+              borderBottomColor: disabled ? DISABLED_EDGE : tokens.edge,
             },
             variant === 'secondary' && styles.outlined,
             isFlat && styles.flat,
