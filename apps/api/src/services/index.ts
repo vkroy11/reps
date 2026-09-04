@@ -5,6 +5,7 @@ import { createContentService, type ContentService } from './content.service';
 import { createNoteService, type NoteService } from './note.service';
 import { createOnboardingService, type OnboardingService } from './onboarding.service';
 import { createPathService, type PathService } from './path.service';
+import { createProgressService, type ProgressService } from './progress.service';
 import { createResourceCurator } from './resource-curator.service';
 import { createTechniqueService, type TechniqueService } from './technique.service';
 
@@ -14,6 +15,7 @@ export interface Services {
   techniques: TechniqueService;
   content: ContentService;
   notes: NoteService;
+  progress: ProgressService;
 }
 
 export function createServices(deps: {
@@ -47,5 +49,6 @@ export function createServices(deps: {
     techniques,
     content,
     notes: createNoteService({ repositories: deps.repositories, techniques }),
+    progress: createProgressService({ repositories: deps.repositories }),
   };
 }

@@ -405,6 +405,22 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
         }
       },
 
+      async recentSessions(userId, limit) {
+        const rows = await prisma.practiceSession.findMany({
+          where: { userId },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          select: { createdAt: true, minutes: true, xp: true, pathId: true },
+        });
+
+        return rows.map((row) => ({
+          at: row.createdAt.toISOString(),
+          minutes: row.minutes,
+          xp: row.xp,
+          pathId: row.pathId,
+        }));
+      },
+
       pathTotals,
       totalsForPaths,
     },

@@ -6,6 +6,7 @@ import { healthRouter } from './health.route';
 import { createNotesRouter } from './notes.route';
 import { createOnboardingRouter } from './onboarding.route';
 import { createPathsRouter } from './paths.route';
+import { createProgressRouter } from './progress.route';
 import { createTechniquesRouter } from './techniques.route';
 
 export function createApiRouter(deps: {
@@ -22,6 +23,7 @@ export function createApiRouter(deps: {
   router.use('/paths', createPathsRouter(deps.services));
   router.use('/techniques', createTechniquesRouter(deps.services));
   router.use('/notes', createNotesRouter(deps.services));
+  router.use('/progress', createProgressRouter(deps.services));
 
   return router;
 }

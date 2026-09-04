@@ -1,3 +1,4 @@
+import { formatTimestamp } from '@reps/client';
 import type { Note, TechniqueContent } from '@reps/core';
 import { Button, Card, PipMascot, Skeleton, Text, color, space } from '@reps/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -5,6 +6,7 @@ import ChevronLeft from 'lucide-react-native/icons/chevron-left';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AdaptSheet } from '../../features/techniques/AdaptSheet';
 import { NoteComposer } from '../../features/notes/NoteComposer';
 import { NoteRow } from '../../features/notes/NoteRow';
 import { useTechniqueNotes } from '../../features/notes/useNotes';
@@ -24,7 +26,7 @@ import { useTechnique, useTechniqueContent } from '../../features/techniques/use
 export default function TechniqueScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, seek } = useLocalSearchParams<{ id: string; seek?: string }>();
 
   const { technique, error, loading, reload } = useTechnique(id ?? null);
   const { content, loading: contentLoading, error: contentError, load } = useTechniqueContent(
@@ -39,6 +41,7 @@ export default function TechniqueScreen() {
   const [composer, setComposer] = useState<{ timestampSec: number | null; note: Note | null } | null>(
     null,
   );
+  const [adapt, setAdapt] = useState<'too_hard' | 'skip' | null>(null);
 
   const primaryResource = technique?.resources[0] ?? null;
 
@@ -46,9 +49,29 @@ export default function TechniqueScreen() {
     readPosition.current = read;
   }, []);
 
-  const registerSeek = useCallback((seek: (seconds: number) => void) => {
-    seekRef.current = seek;
-  }, []);
+  /*
+    A note tapped in the notebook arrives with `?seek=222`, and the label that
+    sent the learner here said "Jump to 3:42". Honouring it exactly is the
+    whole contract: a label naming an anchor the destination ignores teaches
+    people to distrust every one of them.
+
+    Applied once, and only after the player has registered its seek function -
+    which is why it lands here rather than in an effect that might run first.
+  */
+  const jumpedRef = useRef(false);
+  const jumpTo = seek === undefined ? null : Number.parseInt(seek, 10);
+
+  const registerSeek = useCallback(
+    (seeker: (seconds: number) => void) => {
+      seekRef.current = seeker;
+
+      if (jumpedRef.current || jumpTo === null || Number.isNaN(jumpTo)) return;
+
+      jumpedRef.current = true;
+      seeker(jumpTo);
+    },
+    [jumpTo],
+  );
 
   return (
     <View style={styles.screen}>
@@ -121,6 +144,14 @@ export default function TechniqueScreen() {
                   {primaryResource.selectionReason}
                 </Text>
 
+                {jumpTo !== null && !Number.isNaN(jumpTo) ? (
+                  <View style={styles.jumped}>
+                    <Text variant="caption" tone="textOnBrand">
+                      Jumped to your note · {formatTimestamp(jumpTo)}
+                    </Text>
+                  </View>
+                ) : null}
+
                 <Button
                   label="Add a note here"
                   variant="secondary"
@@ -150,6 +181,23 @@ export default function TechniqueScreen() {
                 {technique.practicePrompt}
               </Text>
             </Card>
+
+            {technique.status === 'completed' ? (
+              <Button
+                label="Practise again"
+                variant="secondary"
+                onPress={() => router.push(`/practice/${technique.id}`)}
+                style={styles.start}
+                testID="start-rep"
+              />
+            ) : (
+              <Button
+                label="Start the rep"
+                onPress={() => router.push(`/practice/${technique.id}`)}
+                style={styles.start}
+                testID="start-rep"
+              />
+            )}
 
             {content ? <GeneratedContent content={content} /> : null}
 
@@ -210,12 +258,53 @@ export default function TechniqueScreen() {
               />
             ) : null}
 
-            <Text variant="caption" tone="textSecondary" center style={styles.soon}>
-              The practice timer and the reflect step arrive next.
-            </Text>
+            <View style={styles.adapt}>
+              <Text variant="overline" tone="textSecondary">
+                Not working?
+              </Text>
+              {/*
+                Both actions live below the notes rather than beside the primary
+                CTA. They are deliberate decisions with real consequences, and
+                "Not for me" regenerates the tail of the path - neither belongs
+                a thumb's width from "Start the rep".
+              */}
+              <Text variant="caption" tone="textSecondary">
+                Reps will change the path rather than leave you stuck.
+              </Text>
+              <View style={styles.adaptRow}>
+                <Button
+                  label="Too hard"
+                  variant="secondary"
+                  onPress={() => setAdapt('too_hard')}
+                  compact
+                  fullWidth={false}
+                  style={styles.adaptButton}
+                  testID="too-hard"
+                />
+                <Button
+                  label="Not for me"
+                  variant="secondary"
+                  onPress={() => setAdapt('skip')}
+                  compact
+                  fullWidth={false}
+                  style={styles.adaptButton}
+                  testID="not-for-me"
+                />
+              </View>
+            </View>
           </>
         ) : null}
       </ScrollView>
+
+      <AdaptSheet
+        action={adapt}
+        technique={technique}
+        onClose={() => setAdapt(null)}
+        onDone={() => {
+          setAdapt(null);
+          reload();
+        }}
+      />
 
       <NoteComposer
         visible={composer !== null}
@@ -317,6 +406,18 @@ const styles = StyleSheet.create({
   resourceTitle: { marginTop: space.sm },
   reason: { marginTop: space.xs, marginBottom: space.sm },
   addNote: { marginTop: space.sm },
+  start: { marginTop: space.md },
+  jumped: {
+    alignSelf: 'flex-start',
+    marginTop: space.sm,
+    paddingVertical: 5,
+    paddingHorizontal: space.md,
+    borderRadius: 8,
+    backgroundColor: color.brand,
+  },
+  adapt: { marginTop: space.xxl, gap: space.xs },
+  adaptRow: { flexDirection: 'row', gap: space.sm, marginTop: space.sm },
+  adaptButton: { flex: 1 },
   noResource: { marginTop: space.xs },
   rep: { fontSize: 15, lineHeight: 21 },
   generating: { alignItems: 'center', gap: space.sm, paddingVertical: space.lg },

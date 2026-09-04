@@ -437,6 +437,69 @@ describe('API', () => {
     });
   });
 
+  describe('practice history', () => {
+    it('is empty for a learner who has never practised', async () => {
+      const response = await request(app).get('/api/progress/history').set('x-device-id', DEVICE_ID);
+
+      expect(response.status).toBe(200);
+      expect(response.body.entries).toEqual([]);
+    });
+
+    /**
+     * Timestamps, not a computed streak. Bucketing days is a local-calendar
+     * question and the server has no idea what timezone the caller is in - see
+     * packages/core/src/streak.ts.
+     */
+    it('returns raw timestamps rather than a streak', async () => {
+      const created = await request(app).post('/api/paths').set('x-device-id', DEVICE_ID).send(INPUT);
+      await request(app)
+        .post(`/api/techniques/${created.body.path.techniques[0].id}/reflect`)
+        .set('x-device-id', DEVICE_ID)
+        .send({ confidence: 'solid', practiceMinutes: 20 });
+
+      const response = await request(app).get('/api/progress/history').set('x-device-id', DEVICE_ID);
+
+      expect(response.body.entries).toHaveLength(1);
+      expect(response.body.entries[0]).toMatchObject({ minutes: 20, xp: 50 });
+      expect(typeof response.body.entries[0].at).toBe('string');
+      expect(response.body).not.toHaveProperty('streak');
+    });
+
+    it('covers every path, because a streak is about the learner not a path', async () => {
+      const guitar = await request(app).post('/api/paths').set('x-device-id', DEVICE_ID).send(INPUT);
+      const chess = await request(app)
+        .post('/api/paths')
+        .set('x-device-id', DEVICE_ID)
+        .send({ ...INPUT, skill: 'chess', goal: 'stop losing pieces' });
+
+      for (const path of [guitar, chess]) {
+        await request(app)
+          .post(`/api/techniques/${path.body.path.techniques[0].id}/reflect`)
+          .set('x-device-id', DEVICE_ID)
+          .send({ confidence: 'getting_there', practiceMinutes: 10 });
+      }
+
+      const response = await request(app).get('/api/progress/history').set('x-device-id', DEVICE_ID);
+
+      expect(response.body.entries).toHaveLength(2);
+      expect(new Set(response.body.entries.map((e: { pathId: string }) => e.pathId)).size).toBe(2);
+    });
+
+    it('hides another learner\'s practice', async () => {
+      const created = await request(app).post('/api/paths').set('x-device-id', DEVICE_ID).send(INPUT);
+      await request(app)
+        .post(`/api/techniques/${created.body.path.techniques[0].id}/reflect`)
+        .set('x-device-id', DEVICE_ID)
+        .send({ confidence: 'solid', practiceMinutes: 20 });
+
+      const response = await request(app)
+        .get('/api/progress/history')
+        .set('x-device-id', 'device-someone-else-99');
+
+      expect(response.body.entries).toEqual([]);
+    });
+  });
+
   describe('adaptation', () => {
     it('inserts an easier step when a technique is too hard', async () => {
       const created = await request(app)

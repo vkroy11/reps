@@ -1,6 +1,7 @@
 import type {
   Badge,
   Confidence,
+  PracticeEntry,
   GeneratedContentFormat,
   LearningPath,
   LearningPathSummary,
@@ -111,6 +112,14 @@ export interface ProgressRepository {
   }>;
   /** Totals for many paths at once, so the path list does not fan out. */
   totalsForPaths(pathIds: string[]): Promise<Record<string, { xp: number; badges: Badge[] }>>;
+  /**
+   * Recent sessions, newest first, for the streak and the week strip.
+   *
+   * Returns timestamps rather than a computed streak: bucketing days is a
+   * local-calendar question and the server does not know the caller's
+   * timezone. See packages/core/src/streak.ts.
+   */
+  recentSessions(userId: string, limit: number): Promise<PracticeEntry[]>;
 }
 
 /** Tracks spend against a provider's daily allowance, per calendar day. */

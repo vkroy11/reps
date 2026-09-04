@@ -5,9 +5,18 @@ import type { ProgressData } from 'react-native-youtube-bridge';
 import TechniqueScreen from '../src/app/technique/[id]';
 import { renderScreen } from './support/render-screen';
 
+let mockParams: { id: string; seek?: string } = { id: 'tec_2' };
+
 jest.mock('expo-router', () => ({
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
-  useLocalSearchParams: () => ({ id: 'tec_2' }),
+  useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }),
+  useLocalSearchParams: () => mockParams,
+}));
+
+const mockPush = jest.fn();
+
+// The adaptation sheet reaches for the API client through the provider.
+jest.mock('../src/providers/app-provider', () => ({
+  useApp: () => ({ api: null, ready: true }),
 }));
 
 const mockSeekTo = jest.fn();
@@ -127,7 +136,9 @@ describe('TechniqueScreen notes', () => {
     mockAdd.mockClear();
     mockEdit.mockClear();
     mockSeekTo.mockClear();
+    mockPush.mockClear();
     mockEmitProgress = null;
+    mockParams = { id: 'tec_2' };
     mockNotes = [];
     mockTechnique = baseTechnique([resource]);
   });
@@ -186,6 +197,64 @@ describe('TechniqueScreen notes', () => {
 
     expect(mockEdit).toHaveBeenCalledWith('not_1', 'Thumb behind the neck, always.');
     expect(mockAdd).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The notebook's "Jump to 3:42 in the video" is a promise. A label naming an
+   * anchor the destination ignores teaches learners to distrust every label,
+   * so arriving with ?seek= has to actually seek.
+   */
+  describe('arriving from a note in the notebook', () => {
+    it('seeks the player to the moment the label promised', async () => {
+      mockParams = { id: 'tec_2', seek: '222' };
+
+      await renderScreen(<TechniqueScreen />);
+
+      expect(mockSeekTo).toHaveBeenCalledWith(222);
+    });
+
+    it('says it jumped, so the seek is not mistaken for a bug', async () => {
+      mockParams = { id: 'tec_2', seek: '222' };
+
+      const { getByText } = await renderScreen(<TechniqueScreen />);
+
+      expect(getByText('Jumped to your note · 3:42')).toBeOnTheScreen();
+    });
+
+    it('ignores a seek that is not a number', async () => {
+      mockParams = { id: 'tec_2', seek: 'banana' };
+
+      const { queryByText } = await renderScreen(<TechniqueScreen />);
+
+      expect(mockSeekTo).not.toHaveBeenCalled();
+      expect(queryByText(/Jumped to your note/)).toBeNull();
+    });
+  });
+
+  describe('changing the path when a technique is not working', () => {
+    it('says an easier step goes in front rather than removing this one', async () => {
+      const { getByTestId, getByText } = await renderScreen(<TechniqueScreen />);
+
+      await fireEvent.press(getByTestId('too-hard'));
+
+      expect(getByText(/This technique stays/)).toBeOnTheScreen();
+    });
+
+    it('promises completed work is safe before removing anything', async () => {
+      const { getByTestId, getByText } = await renderScreen(<TechniqueScreen />);
+
+      await fireEvent.press(getByTestId('not-for-me'));
+
+      expect(getByText(/already mastered stays exactly as it is/)).toBeOnTheScreen();
+    });
+  });
+
+  it('starts the rep as its own session', async () => {
+    const { getByTestId } = await renderScreen(<TechniqueScreen />);
+
+    await fireEvent.press(getByTestId('start-rep'));
+
+    expect(mockPush).toHaveBeenCalledWith('/practice/tec_2');
   });
 
   describe('a technique with no video', () => {

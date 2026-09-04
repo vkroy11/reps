@@ -10,10 +10,10 @@ export interface StreakChipProps {
 /**
  * The streak lives in the top right, alone, so the HUD has one number in it.
  *
- * The value is whatever is actually recorded - currently zero for everyone,
- * because practice sessions are not logged until the reflect step lands in
- * Phase 7. A fabricated streak would train exactly the behaviour the product
- * is trying to avoid, so it stays honest and greys out at zero.
+ * The value is whatever is actually recorded: consecutive local days with a
+ * stored practice session, counted from the session rows themselves. A
+ * fabricated streak would train exactly the behaviour the product is trying to
+ * avoid, so it greys out at zero rather than being softened.
  */
 export function StreakChip({ days }: StreakChipProps) {
   const active = days > 0;

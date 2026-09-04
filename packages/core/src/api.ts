@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { ConfidenceSchema, ContentFormatSchema } from './domain';
+import { ConfidenceSchema, ContentFormatSchema, LearningPathSchema } from './domain';
+import { XpAwardSchema } from './progress';
 
 /** Request contracts. The API validates against these; the client reuses them. */
 
@@ -26,6 +27,17 @@ export const ReflectRequestSchema = z.object({
   practiceMinutes: z.number().int().min(0).max(600).optional(),
 });
 export type ReflectRequest = z.infer<typeof ReflectRequestSchema>;
+
+/**
+ * What a reflection produced: the path as it now stands, whether the learner
+ * has struggled enough to be offered help, and what the session earned.
+ */
+export const ReflectResultSchema = z.object({
+  path: LearningPathSchema,
+  intervention: z.literal('offer_bridge').nullable(),
+  awarded: XpAwardSchema,
+});
+export type ReflectResult = z.infer<typeof ReflectResultSchema>;
 
 export const CreateNoteRequestSchema = z.object({
   techniqueId: z.string().min(1),

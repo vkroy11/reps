@@ -4,6 +4,8 @@ import {
   LearningPathSchema,
   LearningPathSummarySchema,
   OnboardingSuggestionsSchema,
+  PracticeEntrySchema,
+  ReflectResultSchema,
   TechniqueContentSchema,
   TechniqueSchema,
   type GeneratedContentFormat,
@@ -14,6 +16,9 @@ import {
   type Note,
   type NoteWithContext,
   type OnboardingSuggestions,
+  type PracticeEntry,
+  type ReflectRequest,
+  type ReflectResult,
   type Technique,
   type TechniqueContent,
 } from '@reps/core';
@@ -187,6 +192,53 @@ export function createApiClient({ baseUrl, deviceId, fetchImpl = fetch }: ApiCli
       });
 
       return notes;
+    },
+
+    /**
+     * Records how the practice went.
+     *
+     * Returns the whole path, not just the technique: a reflection can complete
+     * one technique and activate the next, and a partial response would leave
+     * the caller to guess at the rest.
+     */
+    async reflect(techniqueId: string, input: ReflectRequest): Promise<ReflectResult> {
+      return request(`/api/techniques/${encodeURIComponent(techniqueId)}/reflect`, {
+        method: 'POST',
+        body: input,
+        schema: ReflectResultSchema,
+      });
+    },
+
+    /** "This is too hard" - inserts an easier prerequisite in front of it. */
+    async markTooHard(techniqueId: string): Promise<LearningPath> {
+      const { path } = await request(
+        `/api/techniques/${encodeURIComponent(techniqueId)}/too-hard`,
+        { method: 'POST', schema: z.object({ path: LearningPathSchema }) },
+      );
+
+      return path;
+    },
+
+    /** "Not for me" - removes it and regenerates only what came after. */
+    async skipTechnique(techniqueId: string): Promise<LearningPath> {
+      const { path } = await request(`/api/techniques/${encodeURIComponent(techniqueId)}/skip`, {
+        method: 'POST',
+        schema: z.object({ path: LearningPathSchema }),
+      });
+
+      return path;
+    },
+
+    /**
+     * Raw practice history. The streak is computed from it locally, because
+     * only this device knows what "today" means here.
+     */
+    async practiceHistory(): Promise<PracticeEntry[]> {
+      const { entries } = await request('/api/progress/history', {
+        schema: z.object({ entries: z.array(PracticeEntrySchema) }),
+      });
+
+      return entries;
     },
 
     async createNote(input: CreateNoteRequest): Promise<Note> {

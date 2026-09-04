@@ -34,6 +34,8 @@ export const motion = {
   /** A progress ring topping up. */
   ring: { duration: 500, easing: standardEasing },
   /** Answer cards arriving, staggered by this much each. */
+  /** The active pager dot widening. */
+  dot: { duration: 240, easing: standardEasing },
   cardStagger: 80,
   cardEntrance: { duration: 340, easing: standardEasing },
   /** Pip floating in place. Long and shallow, so it never pulls the eye. */

@@ -13,13 +13,28 @@ import {
   useReduceMotion,
   type PipExpression,
 } from '@reps/ui';
-import type { Technique } from '@reps/core';
+import { today, weekEndingToday, type Technique } from '@reps/core';
 import { useState } from 'react';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PathBoard } from '../features/path/PathBoard';
+import { ReflectStep } from '../features/practice/ReflectStep';
+import { SessionPlan } from '../features/today/SessionPlan';
+import { WeekStrip } from '../features/today/WeekStrip';
 
 const EXPRESSIONS: PipExpression[] = ['idle', 'think', 'cheer', 'struggle'];
+
+/** A week with every day status represented, for the strip. */
+const WEEK_FIXTURE = weekEndingToday(
+  [0, 1, 2, 4].map((back) => {
+    const at = new Date();
+    at.setDate(at.getDate() - back);
+
+    return { at: at.toISOString(), minutes: back === 1 ? 6 : 20, xp: 40, pathId: 'path_gallery' };
+  }),
+  today(),
+  { dailyMinutes: 20, daysPerWeek: 5 },
+);
 
 /**
  * A seven-technique board with two gates: enough to see the serpentine turn
@@ -82,6 +97,24 @@ export default function GalleryScreen() {
         { paddingTop: insets.top + space.base, paddingBottom: insets.bottom + space.xxl },
       ]}
     >
+      <Text variant="overline" tone="textSecondary" style={styles.label}>
+        Week strip
+      </Text>
+      <Text variant="caption" tone="textSecondary">
+        Five practised days, one short, and two rest days on a five-day plan.
+      </Text>
+      <WeekStrip week={WEEK_FIXTURE} />
+
+      <Text variant="overline" tone="textSecondary" style={styles.label}>
+        Session plan
+      </Text>
+      <SessionPlan modality="watch_and_do" preferredFormats={['video', 'drill']} totalMinutes={15} />
+
+      <Text variant="overline" tone="textSecondary" style={styles.label}>
+        Reflect
+      </Text>
+      <ReflectStep minutes={12} onReflect={() => setPressCount((n) => n + 1)} saving={false} />
+
       <Text variant="overline" tone="textSecondary" style={styles.label}>
         Path board
       </Text>

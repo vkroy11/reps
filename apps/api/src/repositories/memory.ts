@@ -269,6 +269,19 @@ export function createMemoryRepositories(): Repositories {
         return structuredClone(badge);
       },
 
+      async recentSessions(userId, limit) {
+        return [...sessionsById.values()]
+          .filter((session) => session.userId === userId)
+          .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+          .slice(0, limit)
+          .map((session) => ({
+            at: session.createdAt,
+            minutes: session.minutes,
+            xp: session.xp,
+            pathId: session.pathId,
+          }));
+      },
+
       async pathTotals(pathId) {
         return structuredClone(totalsFor(pathId));
       },
