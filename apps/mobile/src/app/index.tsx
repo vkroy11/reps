@@ -38,8 +38,7 @@ export default function WelcomeScreen() {
           Get good at one thing at a time.
         </Text>
         <Text variant="body" tone="textSecondary" center>
-          Reps builds a short path of 5–8 techniques, finds the right thing to watch, and stops
-          there.
+        Tell Reps what you want to be able to do. It builds five to eight techniques and tracks practice until you can do the thing.
         </Text>
       </View>
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMemoryRepositories } from '../../repositories/memory';
-import { createYouTubeProvider, parseIsoDuration } from './youtube.provider';
+import { createYouTubeProvider, decodeHtml, parseIsoDuration } from './youtube.provider';
 
 describe('parseIsoDuration', () => {
   it.each([
@@ -102,7 +102,10 @@ describe('createYouTubeProvider', () => {
   });
 
   it('treats a 403 as an exhausted quota rather than a server error', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 403 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{}', { status: 403 })),
+    );
 
     const repositories = createMemoryRepositories();
     const provider = createYouTubeProvider({
@@ -114,5 +117,43 @@ describe('createYouTubeProvider', () => {
     await expect(provider.search({ text: 'guitar', language: 'en' })).rejects.toMatchObject({
       code: 'QuotaExhausted',
     });
+  });
+});
+
+/**
+ * The API predates everyone consuming it as JSON, so snippet text comes back
+ * HTML-escaped. Stored raw, "Just Flour &amp; Water" is what the learner reads.
+ */
+describe('decoding what YouTube actually sends', () => {
+  it('decodes the entities the API emits', () => {
+    expect(decodeHtml('Just Flour &amp; Water')).toBe('Just Flour & Water');
+    expect(decodeHtml('Paul&#39;s Sourdough Guide')).toBe("Paul's Sourdough Guide");
+    expect(decodeHtml('&quot;Open crumb&quot;')).toBe('"Open crumb"');
+    expect(decodeHtml('a &lt; b &gt; c')).toBe('a < b > c');
+  });
+
+  it('handles hex references', () => {
+    expect(decodeHtml('Caf&#xE9; sourdough')).toBe('Café sourdough');
+  });
+
+  it('leaves ordinary text alone', () => {
+    expect(decodeHtml('Sourdough for beginners')).toBe('Sourdough for beginners');
+  });
+
+  /** A bare ampersand in a title is common and must not be mangled. */
+  it('leaves a non-entity ampersand alone', () => {
+    expect(decodeHtml('Salt & pepper')).toBe('Salt & pepper');
+    expect(decodeHtml('Q&A')).toBe('Q&A');
+  });
+
+  it('leaves an entity it does not know alone rather than dropping it', () => {
+    expect(decodeHtml('50 &deg; C')).toBe('50 &deg; C');
+    expect(decodeHtml('&#xZZZZ;')).toBe('&#xZZZZ;');
+  });
+
+  it('decodes several in one string', () => {
+    expect(decodeHtml('Tom&#39;s &quot;best&quot; bread &amp; butter')).toBe(
+      'Tom\'s "best" bread & butter',
+    );
   });
 });

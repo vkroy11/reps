@@ -16,9 +16,43 @@ const VIDEOS_UNIT_COST = 1;
 const QUOTA_RESOURCE = 'youtube';
 
 /**
- * Anything shorter than this is a Short, not a lesson. Videos whose duration
- * we could not determine are kept and left to the ranker.
+ * YouTube returns `snippet` text HTML-escaped, because the API predates
+ * everyone consuming it as JSON: a title comes back as
+ * "Just Flour &amp; Water" and a channel as "Paul&#39;s". Stored raw, that is
+ * what the learner reads on the card.
+ *
+ * Only the five XML entities plus numeric references, which is all the API
+ * emits - a general HTML parser here would be a dependency and an attack
+ * surface for no extra correctness.
  */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
+
+export function decodeHtml(text: string): string {
+  return text.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity: string) => {
+    if (entity.startsWith('#')) {
+      const code =
+        entity[1] === 'x' || entity[1] === 'X'
+          ? Number.parseInt(entity.slice(2), 16)
+          : Number.parseInt(entity.slice(1), 10);
+
+      // Anything outside the Unicode range, or a failed parse, stays literal
+      // rather than becoming a replacement character.
+      return Number.isFinite(code) && code >= 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : match;
+    }
+
+    return NAMED_ENTITIES[entity.toLowerCase()] ?? match;
+  });
+}
+
 const MIN_USEFUL_DURATION_SEC = 90;
 
 interface SearchResponse {
@@ -136,13 +170,13 @@ export function createYouTubeProvider(options: {
         .map((item) => ({
           id: item.id.videoId,
           format: 'video' as const,
-          title: item.snippet.title ?? 'Untitled',
+          title: decodeHtml(item.snippet.title ?? 'Untitled'),
           url: `https://www.youtube.com/watch?v=${item.id.videoId}`,
           thumbnailUrl:
             item.snippet.thumbnails?.medium?.url ?? item.snippet.thumbnails?.default?.url ?? null,
-          source: item.snippet.channelTitle ?? 'YouTube',
+          source: decodeHtml(item.snippet.channelTitle ?? 'YouTube'),
           durationSec: durations.get(item.id.videoId) ?? null,
-          description: item.snippet.description ?? null,
+          description: item.snippet.description ? decodeHtml(item.snippet.description) : null,
         }))
         .filter(
           (candidate) =>
