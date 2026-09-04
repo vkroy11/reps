@@ -9,11 +9,11 @@
     "userInterfaceStyle": "light",
     "backgroundColor": "#F8FAFC",
     "ios": {
-      "bundleIdentifier": "in.ozi.reps",
+      "bundleIdentifier": "com.reps.app",
       "supportsTablet": true
     },
     "android": {
-      "package": "in.ozi.reps",
+      "package": "com.reps.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/adaptive-foreground.png",
         "backgroundColor": "#2563EB"
