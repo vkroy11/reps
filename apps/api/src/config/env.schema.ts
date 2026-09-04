@@ -43,6 +43,15 @@ export const envSchema = z.object({
    */
   GOOGLE_OAUTH_CLIENT_IDS: optionalString,
   /**
+   * `fake` accepts `fake:<googleId>:<email>` instead of calling Google.
+   *
+   * Mirrors AI_PROVIDER, and exists for the same reason: the interesting half
+   * of sign-in is what happens to a learner's data, and that should be
+   * exercisable end to end before anyone has created an OAuth client. Refused
+   * in production, where a fake identity provider would accept anyone.
+   */
+  AUTH_PROVIDER: z.enum(['google', 'fake']).default('google'),
+  /**
    * Signing key for our own session tokens.
    *
    * Required in production and only there: a dev machine with no secret set

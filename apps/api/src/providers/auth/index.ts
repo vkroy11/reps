@@ -1,4 +1,5 @@
-import { env } from '../../config/env';
+import { env, isProduction } from '../../config/env';
+import { createFakeGoogleVerifier } from './fake.provider';
 import { createGoogleVerifier } from './google.provider';
 import type { GoogleVerifier } from './types';
 
@@ -11,6 +12,13 @@ import type { GoogleVerifier } from './types';
  * degrade to "no sync", not to "no API".
  */
 export function createAuthProvider(): GoogleVerifier {
+  if (env.AUTH_PROVIDER === 'fake') {
+    // Loud, and fatal in production: a fake verifier accepts anyone.
+    if (isProduction) throw new Error('AUTH_PROVIDER=fake is not allowed in production');
+
+    return createFakeGoogleVerifier();
+  }
+
   const clientIds = (env.GOOGLE_OAUTH_CLIENT_IDS ?? '')
     .split(',')
     .map((id) => id.trim())
