@@ -53,6 +53,10 @@ export function decodeHtml(text: string): string {
   });
 }
 
+/**
+ * Anything shorter than this is a Short, not a lesson. Videos whose duration
+ * we could not determine are kept and left to the ranker.
+ */
 const MIN_USEFUL_DURATION_SEC = 90;
 
 interface SearchResponse {
