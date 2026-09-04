@@ -11,9 +11,11 @@ services:
     name: reps-api
     runtime: node
     plan: free
-    # Postgres lives on Neon, so pick the Render region closest to the Neon
-    # project - every request pays that round trip twice.
-    region: oregon
+    # Neon is in AWS us-east-1, and Render's virginia is the same place. This
+    # is not a micro-optimisation: a request here makes several database round
+    # trips, and putting the API in oregon would add roughly 60ms to each one -
+    # a few hundred milliseconds on every screen, for nothing.
+    region: virginia
     healthCheckPath: /api/health
 
     # The build is one script in package.json rather than four commands here,
