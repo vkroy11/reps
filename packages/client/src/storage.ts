@@ -19,6 +19,7 @@ export const storageKey = {
   focusedPathId: 'reps.focused-path-id',
   onboarded: 'reps.onboarded',
   reminder: 'reps.reminder',
+  session: 'reps.session',
 } as const;
 
 /**

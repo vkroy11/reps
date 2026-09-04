@@ -1,13 +1,16 @@
 import { stageCount } from '@reps/core';
 import { Card, Text, color, space } from '@reps/ui';
 import { Link } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SyncCard } from '../../features/auth/SyncCard';
 import { usePath, usePathList } from '../../features/paths/usePaths';
 import { usePracticeHistory } from '../../features/progress/useStreak';
 import { ReminderCard } from '../../features/reminders/ReminderCard';
 import { useReminder } from '../../features/reminders/useReminder';
 import { resolveApiBaseUrl } from '../../lib/api-base-url';
+import { useApp } from '../../providers/app-provider';
 
 /**
  * Not a settings screen: what you have done, one reminder, and the build.
@@ -18,7 +21,9 @@ import { resolveApiBaseUrl } from '../../lib/api-base-url';
  */
 export default function MeScreen() {
   const insets = useSafeAreaInsets();
+  const { api, ready } = useApp();
   const { paths, focusedId } = usePathList();
+  const [authAvailable, setAuthAvailable] = useState<boolean | null>(null);
   const { path } = usePath(focusedId);
   const { entries, streak } = usePracticeHistory();
 
@@ -30,6 +35,31 @@ export default function MeScreen() {
     nextTechnique: active?.title ?? null,
     minutesPerSession: active?.estimatedMinutes ?? focused?.dailyMinutes ?? 20,
   });
+
+  /*
+    Asked once, before the card is drawn. The alternative - showing the button
+    and discovering server-side that sign-in is unconfigured - turns a missing
+    setting into a failed tap.
+  */
+  useEffect(() => {
+    if (!ready || !api) return;
+
+    // Named `cancelled` rather than `active`, which is the active technique
+    // three lines up.
+    let cancelled = false;
+    api
+      .authAvailable()
+      .then((available) => {
+        if (!cancelled) setAuthAvailable(available);
+      })
+      .catch(() => {
+        if (!cancelled) setAuthAvailable(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, ready]);
 
   const completed = paths.reduce((sum, item) => sum + item.completedCount, 0);
   const total = paths.reduce((sum, item) => sum + item.techniqueCount, 0);
@@ -89,6 +119,11 @@ export default function MeScreen() {
         ready={reminder.ready}
         onChange={(patch) => void reminder.update(patch)}
       />
+
+      <Text variant="overline" tone="textSecondary" style={styles.label}>
+        Account
+      </Text>
+      <SyncCard serverAvailable={authAvailable} />
 
       <Text variant="overline" tone="textSecondary" style={styles.label}>
         Build

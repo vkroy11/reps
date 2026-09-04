@@ -9,5 +9,6 @@ export * from './storage';
 export * from './onboarding-draft';
 export * from './onboarded';
 export * from './reminder-store';
+export * from './session-store';
 export * from './focus';
 export * from './playback';

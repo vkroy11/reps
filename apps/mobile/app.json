@@ -55,6 +55,11 @@
       "router": {},
       "eas": {
         "projectId": "9481ccde-e9f7-4d35-9a00-c19d8c1b3ada"
+      },
+      "googleOAuth": {
+        "web": "",
+        "ios": "",
+        "android": ""
       }
     }
   }

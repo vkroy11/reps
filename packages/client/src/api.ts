@@ -29,6 +29,14 @@ export interface ApiClientOptions {
   baseUrl: string;
   /** Anonymous identity. The API creates a user row on first contact. */
   deviceId: string;
+  /**
+   * The current session token, read at request time rather than passed once.
+   *
+   * A getter, not a value: signing in and out happens while the client is
+   * alive, and a captured string would leave every existing caller sending a
+   * stale token - or none - until the app rebuilt the client.
+   */
+  getToken?: () => string | null;
   /** Injectable for tests. */
   fetchImpl?: typeof fetch;
 }
@@ -41,7 +49,27 @@ const ErrorBodySchema = z.object({
   message: z.string().optional(),
 });
 
-export function createApiClient({ baseUrl, deviceId, fetchImpl = fetch }: ApiClientOptions) {
+export function createApiClient({
+  baseUrl,
+  deviceId,
+  getToken,
+  fetchImpl = fetch,
+}: ApiClientOptions) {
+  /**
+   * The device id goes on every request, signed in or not: it is what a claim
+   * and a sign-out act on. The bearer token, when there is one, decides which
+   * learner the request speaks for.
+   */
+  function headers(json: boolean): Record<string, string> {
+    const token = getToken?.() ?? null;
+
+    return {
+      ...(json ? { 'content-type': 'application/json' } : {}),
+      'x-device-id': deviceId,
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    };
+  }
+
   async function request<Schema extends z.ZodType>(
     path: string,
     options: { method?: string; body?: unknown; schema: Schema; timeoutMs?: number },
@@ -51,10 +79,7 @@ export function createApiClient({ baseUrl, deviceId, fetchImpl = fetch }: ApiCli
     try {
       response = await fetchImpl(`${baseUrl}${path}`, {
         method: options.method ?? 'GET',
-        headers: {
-          'content-type': 'application/json',
-          'x-device-id': deviceId,
-        },
+        headers: headers(true),
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
         signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS.default),
       });
@@ -94,7 +119,7 @@ export function createApiClient({ baseUrl, deviceId, fetchImpl = fetch }: ApiCli
     try {
       response = await fetchImpl(`${baseUrl}${path}`, {
         method,
-        headers: { 'x-device-id': deviceId },
+        headers: headers(false),
         signal: AbortSignal.timeout(TIMEOUT_MS.default),
       });
     } catch (error) {
@@ -264,6 +289,63 @@ export function createApiClient({ baseUrl, deviceId, fetchImpl = fetch }: ApiCli
     async deleteNote(noteId: string): Promise<void> {
       // 204, so there is no body to validate.
       await requestNoContent(`/api/notes/${noteId}`, 'DELETE');
+    },
+
+    /** Whether this server can do sign-in at all. */
+    async authAvailable(): Promise<boolean> {
+      const { available } = await request('/api/auth/status', {
+        schema: z.object({ available: z.boolean() }),
+      });
+
+      return available;
+    },
+
+    /**
+     * Exchanges a Google ID token for a session, claiming this device.
+     *
+     * `claimed` tells the caller whether anonymous work was merged in, so the
+     * UI can say "your chess path came with you" rather than staying silent
+     * about something the learner was probably worried about.
+     */
+    async signInWithGoogle(idToken: string): Promise<{
+      token: string;
+      expiresAt: string;
+      userId: string;
+      email: string | null;
+      name: string | null;
+      claimed: boolean;
+    }> {
+      const result = await request('/api/auth/google', {
+        method: 'POST',
+        body: { idToken },
+        schema: z.object({
+          token: z.string(),
+          expiresAt: z.string(),
+          claimed: z.boolean(),
+          user: z.object({
+            id: z.string(),
+            email: z.string().nullable(),
+            name: z.string().nullable(),
+          }),
+        }),
+      });
+
+      return {
+        token: result.token,
+        expiresAt: result.expiresAt,
+        userId: result.user.id,
+        email: result.user.email,
+        name: result.user.name,
+        claimed: result.claimed,
+      };
+    },
+
+    /** Unlinks this device. The account keeps everything. */
+    async signOut(): Promise<void> {
+      await request('/api/auth/sign-out', {
+        method: 'POST',
+        schema: z.object({ user: z.object({ id: z.string() }) }),
+      });
     },
 
     async health(): Promise<boolean> {
