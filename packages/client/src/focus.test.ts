@@ -17,6 +17,8 @@ function summary(id: string, overrides: Partial<LearningPathSummary> = {}): Lear
     language: 'en',
     createdAt: '2026-09-01T10:00:00.000Z',
     updatedAt: '2026-09-01T10:00:00.000Z',
+    xp: 0,
+    badges: [],
     techniqueCount: 6,
     completedCount: 0,
     ...overrides,

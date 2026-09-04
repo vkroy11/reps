@@ -7,6 +7,24 @@ import type { ResourceProvider } from '../providers/resources';
 import { toPathContext } from './context';
 
 /**
+ * What curation actually needs from a path and a technique.
+ *
+ * Stated as the read set rather than the full domain types so a path being
+ * assembled - which has no XP or badges yet, and techniques with no practice
+ * minutes - can be curated without inventing values for fields curation does
+ * not look at.
+ */
+export type CuratablePath = Pick<
+  LearningPath,
+  'id' | 'skill' | 'goal' | 'level' | 'language' | 'dailyMinutes' | 'daysPerWeek' | 'preferredFormats'
+>;
+
+export type CuratableTechnique = Pick<
+  Technique,
+  'id' | 'title' | 'whyItMatters' | 'modality' | 'searchQueries' | 'estimatedMinutes'
+>;
+
+/**
  * Kept deliberately small. Every candidate costs prompt tokens at ranking
  * time, and Groq's free tier allows 8K tokens/minute - five candidates is
  * plenty to choose from and leaves headroom for the rest of the pipeline.
@@ -25,7 +43,12 @@ export function createResourceCurator(deps: { ai: AiProvider; resources: Resourc
      * failed path creation is not. The technique falls back to generated
      * content in that case.
      */
-    async curate(path: LearningPath, technique: Technique): Promise<Resource[]> {
+    /**
+     * Takes the draft shapes rather than the stored ones: curation happens
+     * while a path is still being assembled, before the read-side aggregates
+     * exist. It only ever reads these.
+     */
+    async curate(path: CuratablePath, technique: CuratableTechnique): Promise<Resource[]> {
       const formats = resolveFormats(technique.modality, path.preferredFormats);
 
       // Drill- and flashcard-shaped techniques are served by generated content.
@@ -77,7 +100,7 @@ export function createResourceCurator(deps: { ai: AiProvider; resources: Resourc
       }
     },
 
-    async findCandidates(path: LearningPath, technique: Technique) {
+    async findCandidates(path: CuratablePath, technique: CuratableTechnique) {
       const queries = technique.searchQueries.slice(0, MAX_QUERIES_PER_TECHNIQUE);
       const byId = new Map<string, Awaited<ReturnType<ResourceProvider['search']>>[number]>();
 

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BadgeSchema } from './progress';
 
 /**
  * How a skill is actually learned. This drives which practice format a
@@ -60,6 +61,13 @@ export const TechniqueSchema = z.object({
   confidence: ConfidenceSchema.nullable(),
   /** How many times the learner reported struggling. Drives intervention. */
   struggleCount: z.number().int().nonnegative(),
+  /**
+   * Credited minutes practised across every session on this technique.
+   *
+   * Read-side only: the rows live in PracticeSession, and this is their sum.
+   * It is what the board's mastery ring is drawn from.
+   */
+  practiceMinutes: z.number().int().nonnegative(),
   /** Set when this technique was inserted as an easier step before another. */
   bridgeForTechniqueId: z.string().nullable(),
   /**
@@ -90,6 +98,17 @@ export const LearningPathSchema = z.object({
    */
   updatedAt: z.string(),
   techniques: z.array(TechniqueSchema),
+  /**
+   * Total XP earned on this path, and the gates cleared on it.
+   *
+   * Both are read-side aggregates over their own tables - see
+   * `LearningPathWrite` in the API's repository types, which is what `save`
+   * actually accepts. Putting them here rather than in a side-channel means
+   * the path list carries them too, so Today can show them without a second
+   * request.
+   */
+  xp: z.number().int().nonnegative(),
+  badges: z.array(BadgeSchema),
 });
 export type LearningPath = z.infer<typeof LearningPathSchema>;
 

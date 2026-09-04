@@ -90,6 +90,7 @@ function baseTechnique(resources: Resource[]): Technique {
     status: 'active',
     confidence: null,
     struggleCount: 0,
+    practiceMinutes: 0,
     bridgeForTechniqueId: null,
     searchQueries: [],
     resources,

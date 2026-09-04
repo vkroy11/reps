@@ -298,6 +298,145 @@ describe('API', () => {
     });
   });
 
+  describe('xp and badges', () => {
+    async function newPath() {
+      const created = await request(app).post('/api/paths').set('x-device-id', DEVICE_ID).send(INPUT);
+
+      return created.body.path;
+    }
+
+    function reflect(techniqueId: string, body: Record<string, unknown>) {
+      return request(app)
+        .post(`/api/techniques/${techniqueId}/reflect`)
+        .set('x-device-id', DEVICE_ID)
+        .send(body);
+    }
+
+    it('pays for practice minutes plus a first-reflection bonus', async () => {
+      const path = await newPath();
+
+      const response = await reflect(path.techniques[0].id, {
+        confidence: 'solid',
+        practiceMinutes: 20,
+      });
+
+      // 20 minutes at 2/min, plus 10 for reporting at all.
+      expect(response.body.awarded).toMatchObject({ xp: 50, minutes: 20 });
+      expect(response.body.path.xp).toBe(50);
+    });
+
+    /**
+     * The property the whole game layer rests on. If "solid" paid better than
+     * "struggling", the app would be paying learners to overstate how it went -
+     * and confidence is the only signal the adaptation engine reads.
+     */
+    it('pays the same whatever the confidence', async () => {
+      const struggled = await reflect((await newPath()).techniques[0].id, {
+        confidence: 'struggling',
+        practiceMinutes: 15,
+      });
+      const solid = await reflect((await newPath()).techniques[0].id, {
+        confidence: 'solid',
+        practiceMinutes: 15,
+      });
+
+      expect(struggled.body.awarded.xp).toBe(solid.body.awarded.xp);
+    });
+
+    it('caps an implausible practice claim', async () => {
+      const path = await newPath();
+
+      const response = await reflect(path.techniques[0].id, {
+        confidence: 'solid',
+        practiceMinutes: 600,
+      });
+
+      expect(response.body.awarded.minutes).toBe(60);
+    });
+
+    it('credits the minutes to the technique, for the mastery ring', async () => {
+      const path = await newPath();
+      await reflect(path.techniques[0].id, { confidence: 'getting_there', practiceMinutes: 8 });
+
+      const fetched = await request(app)
+        .get(`/api/paths/${path.id}`)
+        .set('x-device-id', DEVICE_ID);
+
+      expect(fetched.body.path.techniques[0].practiceMinutes).toBe(8);
+    });
+
+    it('drops the bonus on a second session against the same technique', async () => {
+      const path = await newPath();
+      await reflect(path.techniques[0].id, { confidence: 'getting_there', practiceMinutes: 10 });
+      const second = await reflect(path.techniques[0].id, {
+        confidence: 'solid',
+        practiceMinutes: 10,
+      });
+
+      expect(second.body.awarded.xp).toBe(20);
+    });
+
+    it('awards no badge before a gate is reached', async () => {
+      const path = await newPath();
+      const response = await reflect(path.techniques[0].id, { confidence: 'solid' });
+
+      expect(response.body.awarded.badge).toBeNull();
+    });
+
+    it('awards a stage badge named after its capstone on the third completion', async () => {
+      const path = await newPath();
+
+      await reflect(path.techniques[0].id, { confidence: 'solid' });
+      await reflect(path.techniques[1].id, { confidence: 'solid' });
+      const third = await reflect(path.techniques[2].id, { confidence: 'solid' });
+
+      expect(third.body.awarded.badge).toMatchObject({
+        stage: 1,
+        label: path.techniques[2].title,
+      });
+      expect(third.body.path.badges).toHaveLength(1);
+    });
+
+    it('carries badges on the path list, so Today needs no second request', async () => {
+      const path = await newPath();
+      await reflect(path.techniques[0].id, { confidence: 'solid', practiceMinutes: 5 });
+      await reflect(path.techniques[1].id, { confidence: 'solid' });
+      await reflect(path.techniques[2].id, { confidence: 'solid' });
+
+      const listed = await request(app).get('/api/paths').set('x-device-id', DEVICE_ID);
+
+      expect(listed.body.paths[0].badges).toHaveLength(1);
+      expect(listed.body.paths[0].xp).toBeGreaterThan(0);
+    });
+
+    /** A path with fewer than three techniques would otherwise gate on nothing. */
+    it('does not award a stage the path has no gate for', async () => {
+      const path = await newPath();
+
+      for (const technique of path.techniques) {
+        await reflect(technique.id, { confidence: 'solid' });
+      }
+
+      const fetched = await request(app)
+        .get(`/api/paths/${path.id}`)
+        .set('x-device-id', DEVICE_ID);
+      const expected = Math.floor(path.techniques.length / 3);
+
+      expect(fetched.body.path.badges).toHaveLength(expected);
+    });
+
+    it('records a session even when nothing was completed', async () => {
+      const path = await newPath();
+      const response = await reflect(path.techniques[0].id, {
+        confidence: 'struggling',
+        practiceMinutes: 12,
+      });
+
+      expect(response.body.awarded.xp).toBe(34);
+      expect(response.body.path.techniques[0].status).toBe('active');
+    });
+  });
+
   describe('adaptation', () => {
     it('inserts an easier step when a technique is too hard', async () => {
       const created = await request(app)

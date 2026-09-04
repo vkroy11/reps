@@ -9,7 +9,20 @@ import {
 import { newId } from '../lib/ids';
 import type { PathContext } from '../providers/ai/types';
 
-export function toPathContext(path: LearningPath): PathContext {
+/**
+ * A technique as the services build and pass it around: everything except
+ * `practiceMinutes`, which is summed from PracticeSession on read and so is
+ * never something a service can supply.
+ */
+export type TechniqueDraft = Omit<Technique, 'practiceMinutes'>;
+
+/** The fields a model prompt is built from. */
+export type PathContextSource = Pick<
+  LearningPath,
+  'skill' | 'goal' | 'level' | 'language' | 'dailyMinutes' | 'daysPerWeek' | 'preferredFormats'
+>;
+
+export function toPathContext(path: PathContextSource): PathContext {
   return {
     skill: path.skill,
     goal: path.goal,
@@ -31,7 +44,7 @@ export function toTechnique(
     archetype: SkillArchetype;
     bridgeForTechniqueId?: string | null;
   },
-): Technique {
+): TechniqueDraft {
   return {
     id: newId('tec'),
     pathId: placement.pathId,
@@ -52,7 +65,7 @@ export function toTechnique(
 }
 
 /** Order is positional, so it is recomputed after every insert or removal. */
-export function renumber(techniques: Technique[]): Technique[] {
+export function renumber<T extends { order: number }>(techniques: T[]): T[] {
   return techniques.map((technique, index) => ({ ...technique, order: index }));
 }
 
@@ -60,7 +73,9 @@ export function renumber(techniques: Technique[]): Technique[] {
  * Exactly one technique should be active whenever unfinished work remains, so
  * the home screen always has a "today" to show.
  */
-export function ensureActiveTechnique(techniques: Technique[]): Technique[] {
+export function ensureActiveTechnique<T extends { status: TechniqueStatus }>(
+  techniques: T[],
+): T[] {
   if (techniques.some((technique) => technique.status === 'active')) return techniques;
 
   const nextIndex = techniques.findIndex((technique) => technique.status === 'locked');

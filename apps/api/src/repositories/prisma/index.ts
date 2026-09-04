@@ -2,15 +2,21 @@ import { PrismaClient } from '@prisma/client';
 import {
   TechniqueContentSchema,
   ResourceCandidateSchema,
-  type LearningPath,
+  type Badge,
   type LearningPathSummary,
   type Note,
   type NoteWithContext,
 } from '@reps/core';
 import { z } from 'zod';
 import { newId } from '../../lib/ids';
-import type { Repositories } from '../types';
-import { toDomainPath, toResourceRow, toTechniqueRow } from './mappers';
+import type { LearningPathWrite, Repositories } from '../types';
+import {
+  toDomainBadge,
+  toDomainPath,
+  toResourceRow,
+  toTechniqueRow,
+  type PathTotals,
+} from './mappers';
 
 const CandidatesSchema = z.array(ResourceCandidateSchema);
 
@@ -25,6 +31,19 @@ interface NoteRow {
   body: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/**
+ * Prisma's duplicate-key error. Matched on the code rather than by importing
+ * PrismaClientKnownRequestError, which is not exported from the generated
+ * client's public entry point in this version.
+ */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === 'P2002'
+  );
 }
 
 function toDomainNote(row: NoteRow): Note {
@@ -42,6 +61,61 @@ function toDomainNote(row: NoteRow): Note {
 
 export function createPrismaRepositories(prisma: PrismaClient): Repositories {
   const today = (): string => new Date().toISOString().slice(0, 10);
+
+  /**
+   * XP, badges and per-technique minutes for one path.
+   *
+   * Two aggregate queries rather than loading the session rows: a path with a
+   * long history could accumulate hundreds of sessions, and the only thing
+   * needed from them is two sums.
+   */
+  async function pathTotals(pathId: string): Promise<PathTotals> {
+    const [grouped, badgeRows] = await Promise.all([
+      prisma.practiceSession.groupBy({
+        by: ['techniqueId'],
+        where: { pathId },
+        _sum: { minutes: true, xp: true },
+      }),
+      prisma.badge.findMany({ where: { pathId }, orderBy: { stage: 'asc' } }),
+    ]);
+
+    const minutesByTechnique: Record<string, number> = {};
+    let xp = 0;
+
+    for (const group of grouped) {
+      minutesByTechnique[group.techniqueId] = group._sum.minutes ?? 0;
+      xp += group._sum.xp ?? 0;
+    }
+
+    return { xp, badges: badgeRows.map(toDomainBadge), minutesByTechnique };
+  }
+
+  /** XP and badges for many paths in two queries, whatever the list length. */
+  async function totalsForPaths(
+    pathIds: string[],
+  ): Promise<Record<string, { xp: number; badges: Badge[] }>> {
+    const totals: Record<string, { xp: number; badges: Badge[] }> = {};
+    for (const pathId of pathIds) totals[pathId] = { xp: 0, badges: [] };
+
+    if (pathIds.length === 0) return totals;
+
+    const [grouped, badgeRows] = await Promise.all([
+      prisma.practiceSession.groupBy({
+        by: ['pathId'],
+        where: { pathId: { in: pathIds } },
+        _sum: { xp: true },
+      }),
+      prisma.badge.findMany({ where: { pathId: { in: pathIds } }, orderBy: { stage: 'asc' } }),
+    ]);
+
+    for (const group of grouped) {
+      const entry = totals[group.pathId];
+      if (entry) entry.xp = group._sum.xp ?? 0;
+    }
+    for (const row of badgeRows) totals[row.pathId]?.badges.push(toDomainBadge(row));
+
+    return totals;
+  }
 
   return {
     users: {
@@ -63,7 +137,7 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
        * wiping them would throw away every lesson and card deck on each save.
        * Resources are small and always replaced wholesale.
        */
-      async save(path: LearningPath) {
+      async save(path: LearningPathWrite) {
         await prisma.$transaction(async (tx) => {
           const row = {
             userId: path.userId,
@@ -107,12 +181,15 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
           }
         });
 
-        const saved = await prisma.learningPath.findUniqueOrThrow({
-          where: { id: path.id },
-          include: withTechniques,
-        });
+        const [saved, totals] = await Promise.all([
+          prisma.learningPath.findUniqueOrThrow({
+            where: { id: path.id },
+            include: withTechniques,
+          }),
+          pathTotals(path.id),
+        ]);
 
-        return toDomainPath(saved);
+        return toDomainPath(saved, totals);
       },
 
       async findById(id) {
@@ -120,8 +197,9 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
           where: { id },
           include: withTechniques,
         });
+        if (!row) return null;
 
-        return row ? toDomainPath(row) : null;
+        return toDomainPath(row, await pathTotals(id));
       },
 
       async findByTechniqueId(techniqueId) {
@@ -129,8 +207,9 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
           where: { techniques: { some: { id: techniqueId } } },
           include: withTechniques,
         });
+        if (!row) return null;
 
-        return row ? toDomainPath(row) : null;
+        return toDomainPath(row, await pathTotals(row.id));
       },
 
       async listByUser(userId): Promise<LearningPathSummary[]> {
@@ -144,6 +223,10 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
             _count: { select: { techniques: true } },
           },
         });
+
+        // One grouped query and one badge query for the whole list, rather than
+        // two per path - the list is the app's first request on every launch.
+        const totals = await totalsForPaths(rows.map((row) => row.id));
 
         return rows.map((row) => ({
           id: row.id,
@@ -161,8 +244,11 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
           techniqueCount: row._count.techniques,
           completedCount: row.techniques.filter((technique) => technique.status === 'completed')
             .length,
+          xp: totals[row.id]?.xp ?? 0,
+          badges: totals[row.id]?.badges ?? [],
         }));
       },
+
     },
 
     notes: {
@@ -265,6 +351,62 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
           update: payload,
         });
       },
+    },
+
+    progress: {
+      async recordSession(session) {
+        const row = await prisma.practiceSession.create({
+          data: {
+            id: session.id,
+            userId: session.userId,
+            pathId: session.pathId,
+            techniqueId: session.techniqueId,
+            minutes: session.minutes,
+            xp: session.xp,
+            confidence: session.confidence,
+          },
+        });
+
+        return { ...session, createdAt: row.createdAt.toISOString() };
+      },
+
+      async isFirstReflection(techniqueId) {
+        const existing = await prisma.practiceSession.findFirst({
+          where: { techniqueId },
+          select: { id: true },
+        });
+
+        return existing === null;
+      },
+
+      /**
+       * Leans on the `(pathId, stage)` unique constraint rather than checking
+       * first: a read-then-write would let two concurrent reflects both see no
+       * badge and both insert. The constraint makes the second one fail, and a
+       * P2002 here means "already awarded", not an error.
+       */
+      async awardBadge(badge) {
+        try {
+          const row = await prisma.badge.create({
+            data: {
+              id: badge.id,
+              userId: badge.userId,
+              pathId: badge.pathId,
+              stage: badge.stage,
+              label: badge.label,
+            },
+          });
+
+          return toDomainBadge(row);
+        } catch (error) {
+          if (isUniqueViolation(error)) return null;
+
+          throw error;
+        }
+      },
+
+      pathTotals,
+      totalsForPaths,
     },
 
     quota: {

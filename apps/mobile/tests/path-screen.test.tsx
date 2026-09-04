@@ -39,6 +39,8 @@ const mockSummary: LearningPathSummary = {
   language: 'en',
   createdAt: '2026-09-01T10:00:00.000Z',
   updatedAt: '2026-09-02T10:00:00.000Z',
+  xp: 0,
+  badges: [],
   techniqueCount: 4,
   completedCount: 1,
 };
@@ -55,6 +57,7 @@ function technique(overrides: Partial<Technique> & { id: string }): Technique {
     status: 'locked',
     confidence: null,
     struggleCount: 0,
+    practiceMinutes: 0,
     bridgeForTechniqueId: null,
     searchQueries: [],
     resources: [],

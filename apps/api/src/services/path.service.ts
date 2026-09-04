@@ -2,7 +2,7 @@ import type { LearningPath, LearningPathSummary, OnboardingInput } from '@reps/c
 import { NotFoundError } from '../lib/errors';
 import { newId } from '../lib/ids';
 import type { AiProvider } from '../providers/ai';
-import type { Repositories } from '../repositories/types';
+import type { LearningPathWrite, Repositories } from '../repositories/types';
 import { toTechnique } from './context';
 import type { ResourceCurator } from './resource-curator.service';
 
@@ -23,7 +23,7 @@ export function createPathService(deps: {
       const generated = await deps.ai.generatePath(input);
       const pathId = newId('path');
 
-      const path: LearningPath = {
+      const path: LearningPathWrite = {
         id: pathId,
         userId,
         skill: input.skill,

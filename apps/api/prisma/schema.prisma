@@ -19,8 +19,10 @@ model User {
   googleId  String?  @unique
   createdAt DateTime @default(now())
 
-  paths LearningPath[]
-  notes Note[]
+  paths    LearningPath[]
+  notes    Note[]
+  sessions PracticeSession[]
+  badges   Badge[]
 }
 
 model LearningPath {
@@ -37,8 +39,10 @@ model LearningPath {
   createdAt        DateTime
   updatedAt        DateTime @updatedAt
 
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   techniques Technique[]
+  sessions   PracticeSession[]
+  badges     Badge[]
 
   @@index([userId, createdAt])
 }
@@ -64,6 +68,7 @@ model Technique {
   resources Resource[]
   content   TechniqueContent[]
   notes     Note[]
+  sessions  PracticeSession[]
 
   @@index([pathId, order])
 }
@@ -133,4 +138,52 @@ model QuotaUsage {
   units    Int    @default(0)
 
   @@id([resource, day])
+}
+
+/// One completed practice session.
+///
+/// Named for the practice rather than the XP because XP is only one thing it
+/// records. It is also the source for the streak, the week strip and the
+/// practice heatmap, and the sum of its minutes per technique is what the
+/// board's mastery ring is drawn from.
+model PracticeSession {
+  id          String   @id
+  userId      String
+  pathId      String
+  techniqueId String
+  /// Minutes after the credited-minutes ceiling, not as reported.
+  minutes     Int
+  xp          Int
+  /// Kept for the reflections list, never for the XP maths.
+  confidence  String
+  createdAt   DateTime @default(now())
+
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  path      LearningPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  technique Technique    @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+
+  /// The streak and heatmap read by user over time; mastery reads by technique.
+  @@index([userId, createdAt])
+  @@index([pathId])
+  @@index([techniqueId])
+}
+
+/// A cleared gate.
+///
+/// The unique constraint is the whole safety mechanism: clearing a stage is
+/// idempotent, so a retried reflect - or a technique completed, un-completed by
+/// a bridge insert, and completed again - cannot mint a second badge.
+model Badge {
+  id       String   @id
+  userId   String
+  pathId   String
+  stage    Int
+  label    String
+  earnedAt DateTime @default(now())
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  path LearningPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+
+  @@unique([pathId, stage])
+  @@index([userId, earnedAt])
 }

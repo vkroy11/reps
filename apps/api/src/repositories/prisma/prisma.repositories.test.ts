@@ -1,8 +1,8 @@
 import { PrismaClient } from '@prisma/client';
-import type { LearningPath, Technique } from '@reps/core';
+import type { Technique } from '@reps/core';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { env } from '../../config/env';
-import type { Repositories } from '../types';
+import type { LearningPathWrite, Repositories } from '../types';
 import { createPrismaRepositories } from './index';
 
 /**
@@ -24,6 +24,7 @@ function technique(overrides: Partial<Technique> & { id: string; pathId: string 
     status: 'active',
     confidence: null,
     struggleCount: 0,
+    practiceMinutes: 0,
     bridgeForTechniqueId: null,
     searchQueries: ['guitar chord transitions beginner'],
     resources: [],
@@ -51,7 +52,9 @@ describeIfDatabase('prisma repositories', () => {
     await prisma.$disconnect();
   });
 
-  function samplePath(id = 'path_test_1'): LearningPath {
+  // Typed as the write shape, which is what save() takes: xp, badges and
+  // practiceMinutes are aggregates and cannot be seeded through a path.
+  function samplePath(id = 'path_test_1'): LearningPathWrite {
     return {
       id,
       userId,

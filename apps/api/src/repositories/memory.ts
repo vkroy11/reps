@@ -1,4 +1,5 @@
 import type {
+  Badge,
   GeneratedContentFormat,
   LearningPath,
   LearningPathSummary,
@@ -7,7 +8,12 @@ import type {
   TechniqueContent,
 } from '@reps/core';
 import { newId } from '../lib/ids';
-import type { Repositories, User } from './types';
+import type {
+  LearningPathWrite,
+  PracticeSessionRecord,
+  Repositories,
+  User,
+} from './types';
 
 /**
  * In-memory implementations. These keep tests hermetic and let the API boot
@@ -17,7 +23,12 @@ import type { Repositories, User } from './types';
  */
 export function createMemoryRepositories(): Repositories {
   const usersByDeviceId = new Map<string, User>();
-  const pathsById = new Map<string, LearningPath>();
+  /**
+   * Stored in write shape. `xp`, `badges` and `practiceMinutes` are not kept
+   * here at all - they are summed from the session and badge stores on every
+   * read, which is the same contract the Prisma implementation honours.
+   */
+  const pathsById = new Map<string, LearningPathWrite>();
   /**
    * Save order. `updatedAt` has millisecond resolution, so two saves in the
    * same millisecond tie and the focus order becomes arbitrary - this makes it
@@ -29,10 +40,47 @@ export function createMemoryRepositories(): Repositories {
   const resourceCache = new Map<string, { candidates: ResourceCandidate[]; cachedAt: number }>();
   const quotaByKey = new Map<string, number>();
   const notesById = new Map<string, Note>();
+  const sessionsById = new Map<string, PracticeSessionRecord>();
+  /** Keyed by `pathId:stage`, which is what makes awarding idempotent. */
+  const badgesByStage = new Map<string, Badge>();
 
   const today = (): string => new Date().toISOString().slice(0, 10);
   const contentKey = (techniqueId: string, format: GeneratedContentFormat): string =>
     `${techniqueId}:${format}`;
+
+  const totalsFor = (pathId: string) => {
+    let xp = 0;
+    const minutesByTechnique: Record<string, number> = {};
+
+    for (const session of sessionsById.values()) {
+      if (session.pathId !== pathId) continue;
+
+      xp += session.xp;
+      minutesByTechnique[session.techniqueId] =
+        (minutesByTechnique[session.techniqueId] ?? 0) + session.minutes;
+    }
+
+    const badges = [...badgesByStage.values()]
+      .filter((badge) => badge.pathId === pathId)
+      .sort((left, right) => left.stage - right.stage);
+
+    return { xp, badges, minutesByTechnique };
+  };
+
+  /** Puts the read-side aggregates back onto a stored path. */
+  const hydrate = (stored: LearningPathWrite): LearningPath => {
+    const { xp, badges, minutesByTechnique } = totalsFor(stored.id);
+
+    return {
+      ...stored,
+      techniques: stored.techniques.map((technique) => ({
+        ...technique,
+        practiceMinutes: minutesByTechnique[technique.id] ?? 0,
+      })),
+      xp,
+      badges,
+    };
+  };
 
   const toSummary = (path: LearningPath): LearningPathSummary => {
     const { techniques, ...rest } = path;
@@ -78,23 +126,23 @@ export function createMemoryRepositories(): Repositories {
     paths: {
       async save(path) {
         // Stamped here rather than by the caller so every write path gets it.
-        const stamped: LearningPath = { ...path, updatedAt: new Date().toISOString() };
+        const stamped: LearningPathWrite = { ...path, updatedAt: new Date().toISOString() };
         pathsById.set(stamped.id, structuredClone(stamped));
         savedSeqById.set(stamped.id, ++saveSeq);
 
-        return structuredClone(stamped);
+        return hydrate(structuredClone(stamped));
       },
 
       async findById(id) {
         const found = pathsById.get(id);
 
-        return found ? structuredClone(found) : null;
+        return found ? hydrate(structuredClone(found)) : null;
       },
 
       async findByTechniqueId(techniqueId) {
         for (const path of pathsById.values()) {
           if (path.techniques.some((technique) => technique.id === techniqueId)) {
-            return structuredClone(path);
+            return hydrate(structuredClone(path));
           }
         }
 
@@ -106,7 +154,7 @@ export function createMemoryRepositories(): Repositories {
           .filter((path) => path.userId === userId)
           // Most recently practised first: that is what the home screen focuses on.
           .sort((left, right) => (savedSeqById.get(right.id) ?? 0) - (savedSeqById.get(left.id) ?? 0))
-          .map(toSummary);
+          .map((path) => toSummary(hydrate(structuredClone(path))));
       },
     },
 
@@ -194,6 +242,46 @@ export function createMemoryRepositories(): Repositories {
 
       async save(key, candidates) {
         resourceCache.set(key, { candidates: structuredClone(candidates), cachedAt: Date.now() });
+      },
+    },
+
+    progress: {
+      async recordSession(session) {
+        sessionsById.set(session.id, structuredClone(session));
+
+        return structuredClone(session);
+      },
+
+      async isFirstReflection(techniqueId) {
+        for (const session of sessionsById.values()) {
+          if (session.techniqueId === techniqueId) return false;
+        }
+
+        return true;
+      },
+
+      async awardBadge(badge) {
+        const key = `${badge.pathId}:${badge.stage}`;
+        if (badgesByStage.has(key)) return null;
+
+        badgesByStage.set(key, structuredClone(badge));
+
+        return structuredClone(badge);
+      },
+
+      async pathTotals(pathId) {
+        return structuredClone(totalsFor(pathId));
+      },
+
+      async totalsForPaths(pathIds) {
+        const totals: Record<string, { xp: number; badges: Badge[] }> = {};
+
+        for (const pathId of pathIds) {
+          const { xp, badges } = totalsFor(pathId);
+          totals[pathId] = structuredClone({ xp, badges });
+        }
+
+        return totals;
       },
     },
 
