@@ -14,13 +14,49 @@ import type {
 
 export interface User {
   id: string;
-  deviceId: string;
+  googleId: string | null;
+  email: string | null;
+  name: string | null;
   createdAt: string;
 }
 
 export interface UserRepository {
   /** Anonymous identity: a device gets a user row on first request. */
   findOrCreateByDeviceId(deviceId: string): Promise<User>;
+  findById(userId: string): Promise<User | null>;
+  findByGoogleId(googleId: string): Promise<User | null>;
+  createWithGoogle(identity: {
+    googleId: string;
+    email: string | null;
+    name: string | null;
+  }): Promise<User>;
+  /**
+   * Points a device at an account and moves everything it owns across.
+   *
+   * Returns the account user. Must be atomic: a half-applied claim would leave
+   * a device pointing at an account while its paths still belong to the
+   * anonymous row, which reads to the learner as their work having vanished.
+   *
+   * Nothing is deleted. If both sides have a path for the same skill, the
+   * account ends up with two - a duplicate the learner can remove, which is
+   * recoverable, unlike a merge that picked one.
+   */
+  claimDevice(input: { deviceId: string; accountUserId: string }): Promise<User>;
+  /**
+   * Attaches a Google identity to an existing user.
+   *
+   * The path a first-ever sign-in takes. Promoting the anonymous row in place
+   * means the common case moves no data at all - and it is why signing in
+   * cannot lose the work done before it.
+   */
+  linkGoogle(input: {
+    userId: string;
+    googleId: string;
+    email: string | null;
+    name: string | null;
+  }): Promise<User>;
+  /** Gives a device a fresh anonymous identity, leaving the account intact. */
+  detachDevice(deviceId: string): Promise<User>;
 }
 
 /**

@@ -40,13 +40,13 @@ describeIfDatabase('prisma repositories', () => {
   beforeEach(async () => {
     repositories = createPrismaRepositories(prisma);
     // Cascades clear paths, techniques, resources and content.
-    await prisma.user.deleteMany({ where: { deviceId: DEVICE_ID } });
+    await prisma.user.deleteMany({ where: { devices: { some: { id: DEVICE_ID } } } });
     const user = await repositories.users.findOrCreateByDeviceId(DEVICE_ID);
     userId = user.id;
   });
 
   afterAll(async () => {
-    await prisma.user.deleteMany({ where: { deviceId: DEVICE_ID } });
+    await prisma.user.deleteMany({ where: { devices: { some: { id: DEVICE_ID } } } });
     await prisma.resourceCacheEntry.deleteMany({ where: { key: { startsWith: 'test-' } } });
     await prisma.quotaUsage.deleteMany({ where: { resource: 'test-resource' } });
     await prisma.$disconnect();

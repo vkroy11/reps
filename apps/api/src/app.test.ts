@@ -3,6 +3,7 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from './app';
 import { createContainer } from './container';
+import { createFakeGoogleVerifier } from './providers/auth/fake.provider';
 import { createFakeAiProvider } from './providers/ai/fake.provider';
 import { createFakeResourceProvider } from './providers/resources/fake.provider';
 import { createMemoryRepositories } from './repositories/memory';
@@ -26,6 +27,7 @@ function testApp() {
     createContainer({
       ai: createFakeAiProvider(),
       resources: createFakeResourceProvider(),
+      google: createFakeGoogleVerifier(),
       repositories: createMemoryRepositories(),
     }),
   );
@@ -497,6 +499,233 @@ describe('API', () => {
         .set('x-device-id', 'device-someone-else-99');
 
       expect(response.body.entries).toEqual([]);
+    });
+  });
+
+  describe('optional sign-in', () => {
+    const ALICE = 'fake:google-alice:alice@example.com';
+    const BOB = 'fake:google-bob:bob@example.com';
+
+    function device(id: string) {
+      return { 'x-device-id': id };
+    }
+
+    async function createPath(deviceId: string, overrides: Partial<OnboardingInput> = {}) {
+      const created = await request(app)
+        .post('/api/paths')
+        .set(device(deviceId))
+        .send({ ...INPUT, ...overrides });
+
+      return created.body.path;
+    }
+
+    async function signIn(deviceId: string, idToken: string) {
+      return request(app).post('/api/auth/google').set(device(deviceId)).send({ idToken });
+    }
+
+    it('says whether sign-in is even possible, without requiring identity', async () => {
+      const response = await request(app).get('/api/auth/status');
+
+      expect(response.status).toBe(200);
+      expect(response.body.available).toBe(true);
+    });
+
+    it('rejects a token it cannot verify', async () => {
+      const response = await signIn('device-anonymous-1', 'not-a-real-token');
+
+      expect(response.status).toBe(401);
+    });
+
+    /** The whole point of "optional": using the app first must cost nothing. */
+    it('keeps the work done before signing in', async () => {
+      const path = await createPath('device-anonymous-1');
+      await request(app)
+        .post('/api/notes')
+        .set(device('device-anonymous-1'))
+        .send({ techniqueId: path.techniques[0].id, body: 'thumb behind the neck' });
+
+      const signedIn = await signIn('device-anonymous-1', ALICE);
+      expect(signedIn.status).toBe(200);
+      expect(signedIn.body.claimed).toBe(false);
+
+      const listed = await request(app)
+        .get('/api/paths')
+        .set('authorization', `Bearer ${signedIn.body.token}`)
+        .set(device('device-anonymous-1'));
+
+      expect(listed.body.paths).toHaveLength(1);
+      expect(listed.body.paths[0].id).toBe(path.id);
+    });
+
+    it('is the same learner whether the token is sent or not', async () => {
+      const path = await createPath('device-anonymous-1');
+      const { body } = await signIn('device-anonymous-1', ALICE);
+
+      const withToken = await request(app)
+        .get('/api/paths')
+        .set('authorization', `Bearer ${body.token}`)
+        .set(device('device-anonymous-1'));
+      const withoutToken = await request(app).get('/api/paths').set(device('device-anonymous-1'));
+
+      expect(withToken.body.paths[0].id).toBe(path.id);
+      expect(withoutToken.body.paths[0].id).toBe(path.id);
+    });
+
+    describe('signing in on a second device', () => {
+      it('merges both sides rather than picking one', async () => {
+        const guitar = await createPath('device-one-aaaa');
+        await signIn('device-one-aaaa', ALICE);
+
+        const chess = await createPath('device-two-bbbb', {
+          skill: 'chess',
+          goal: 'stop losing pieces',
+        });
+        const claimed = await signIn('device-two-bbbb', ALICE);
+
+        expect(claimed.body.claimed).toBe(true);
+
+        const listed = await request(app)
+          .get('/api/paths')
+          .set('authorization', `Bearer ${claimed.body.token}`)
+          .set(device('device-two-bbbb'));
+        const ids = listed.body.paths.map((path: { id: string }) => path.id);
+
+        expect(ids).toHaveLength(2);
+        expect(ids).toContain(guitar.id);
+        expect(ids).toContain(chess.id);
+      });
+
+      it('carries notes and practice history across too', async () => {
+        await signIn('device-one-aaaa', ALICE);
+
+        const path = await createPath('device-two-bbbb');
+        await request(app)
+          .post('/api/notes')
+          .set(device('device-two-bbbb'))
+          .send({ techniqueId: path.techniques[0].id, body: 'from the second device' });
+        await request(app)
+          .post(`/api/techniques/${path.techniques[0].id}/reflect`)
+          .set(device('device-two-bbbb'))
+          .send({ confidence: 'solid', practiceMinutes: 20 });
+
+        const { body } = await signIn('device-two-bbbb', ALICE);
+        const auth = { authorization: `Bearer ${body.token}` };
+
+        const notes = await request(app).get('/api/notes').set(auth).set(device('device-two-bbbb'));
+        const history = await request(app)
+          .get('/api/progress/history')
+          .set(auth)
+          .set(device('device-two-bbbb'));
+
+        expect(notes.body.notes).toHaveLength(1);
+        expect(history.body.entries).toHaveLength(1);
+        expect(history.body.entries[0].xp).toBe(50);
+      });
+
+      it('leaves the first device signed in and intact', async () => {
+        const guitar = await createPath('device-one-aaaa');
+        const first = await signIn('device-one-aaaa', ALICE);
+        await createPath('device-two-bbbb', { skill: 'chess', goal: 'stop losing pieces' });
+        await signIn('device-two-bbbb', ALICE);
+
+        const stillThere = await request(app)
+          .get('/api/paths')
+          .set('authorization', `Bearer ${first.body.token}`)
+          .set(device('device-one-aaaa'));
+
+        expect(stillThere.body.paths.map((p: { id: string }) => p.id)).toContain(guitar.id);
+      });
+    });
+
+    it('keeps two accounts apart', async () => {
+      const alicePath = await createPath('device-one-aaaa');
+      const aliceIn = await signIn('device-one-aaaa', ALICE);
+
+      await createPath('device-two-bbbb', { skill: 'chess', goal: 'stop losing pieces' });
+      const bobIn = await signIn('device-two-bbbb', BOB);
+
+      const bobsPaths = await request(app)
+        .get('/api/paths')
+        .set('authorization', `Bearer ${bobIn.body.token}`)
+        .set(device('device-two-bbbb'));
+
+      expect(bobsPaths.body.paths.map((p: { id: string }) => p.id)).not.toContain(alicePath.id);
+      expect(aliceIn.body.user.googleId).not.toBe(bobIn.body.user.googleId);
+    });
+
+    describe('signing out', () => {
+      it('leaves this device with a clean slate', async () => {
+        await createPath('device-one-aaaa');
+        const { body } = await signIn('device-one-aaaa', ALICE);
+
+        await request(app)
+          .post('/api/auth/sign-out')
+          .set('authorization', `Bearer ${body.token}`)
+          .set(device('device-one-aaaa'));
+
+        const after = await request(app).get('/api/paths').set(device('device-one-aaaa'));
+
+        expect(after.body.paths).toEqual([]);
+      });
+
+      /** Signing out must not be a way to lose an account's work. */
+      it('does not touch the account, so signing back in restores everything', async () => {
+        const path = await createPath('device-one-aaaa');
+        const first = await signIn('device-one-aaaa', ALICE);
+
+        await request(app)
+          .post('/api/auth/sign-out')
+          .set('authorization', `Bearer ${first.body.token}`)
+          .set(device('device-one-aaaa'));
+
+        const again = await signIn('device-one-aaaa', ALICE);
+        const listed = await request(app)
+          .get('/api/paths')
+          .set('authorization', `Bearer ${again.body.token}`)
+          .set(device('device-one-aaaa'));
+
+        expect(listed.body.paths.map((p: { id: string }) => p.id)).toContain(path.id);
+      });
+    });
+
+    describe('a token that is not good', () => {
+      /**
+       * Rejected rather than falling back to the device identity. A silent
+       * fallback would start writing to a fresh anonymous user, and the
+       * learner would watch their paths vanish with no error to explain it.
+       */
+      it('is refused rather than downgraded to anonymous', async () => {
+        await createPath('device-one-aaaa');
+
+        const response = await request(app)
+          .get('/api/paths')
+          .set('authorization', 'Bearer not.a.jwt')
+          .set(device('device-one-aaaa'));
+
+        expect(response.status).toBe(401);
+      });
+
+      it('still requires a device id even with a valid token', async () => {
+        await createPath('device-one-aaaa');
+        const { body } = await signIn('device-one-aaaa', ALICE);
+
+        const response = await request(app)
+          .get('/api/paths')
+          .set('authorization', `Bearer ${body.token}`);
+
+        expect(response.status).toBe(401);
+      });
+    });
+
+    it('reports who is signed in', async () => {
+      const { body } = await signIn('device-one-aaaa', ALICE);
+
+      const me = await request(app)
+        .get('/api/auth/me')
+        .set('authorization', `Bearer ${body.token}`)
+        .set(device('device-one-aaaa'));
+
+      expect(me.body.user).toMatchObject({ googleId: 'google-alice', email: 'alice@example.com' });
     });
   });
 

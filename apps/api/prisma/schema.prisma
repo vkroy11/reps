@@ -13,16 +13,39 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// A learner. Anonymous until they sign in, and still the same row afterwards.
 model User {
   id        String   @id
-  deviceId  String   @unique
+  /// Set only once Google sign-in has happened. Null is the normal state.
   googleId  String?  @unique
+  email     String?
+  name      String?
   createdAt DateTime @default(now())
 
+  devices  Device[]
   paths    LearningPath[]
   notes    Note[]
   sessions PracticeSession[]
   badges   Badge[]
+}
+
+/// Which user a device is currently speaking for.
+///
+/// A separate table rather than a column on User, because the relationship is
+/// many-to-one and it *moves*: signing in on a second device re-points that
+/// device's row at the account and carries its data across. With the device id
+/// as a column on User, claiming would have meant deleting a user row - and
+/// with it any row that still referenced it.
+model Device {
+  /// The client-generated id, so the client needs no server round-trip to have
+  /// an identity.
+  id        String   @id
+  userId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model LearningPath {

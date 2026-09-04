@@ -22,7 +22,9 @@ import type {
  * a reference to it.
  */
 export function createMemoryRepositories(): Repositories {
-  const usersByDeviceId = new Map<string, User>();
+  const usersById = new Map<string, User>();
+  /** Which learner a device currently speaks for. Re-pointed by a claim. */
+  const userIdByDevice = new Map<string, string>();
   /**
    * Stored in write shape. `xp`, `badges` and `practiceMinutes` are not kept
    * here at all - they are summed from the session and badge stores on every
@@ -109,17 +111,114 @@ export function createMemoryRepositories(): Repositories {
   return {
     users: {
       async findOrCreateByDeviceId(deviceId) {
-        const existing = usersByDeviceId.get(deviceId);
-        if (existing) return { ...existing };
+        const existingUserId = userIdByDevice.get(deviceId);
+        if (existingUserId) {
+          const found = usersById.get(existingUserId);
+          if (found) return { ...found };
+        }
 
         const user: User = {
           id: newId('usr'),
-          deviceId,
+          googleId: null,
+          email: null,
+          name: null,
           createdAt: new Date().toISOString(),
         };
-        usersByDeviceId.set(deviceId, user);
+        usersById.set(user.id, user);
+        userIdByDevice.set(deviceId, user.id);
 
         return { ...user };
+      },
+
+      async findById(userId) {
+        const found = usersById.get(userId);
+
+        return found ? { ...found } : null;
+      },
+
+      async findByGoogleId(googleId) {
+        for (const user of usersById.values()) {
+          if (user.googleId === googleId) return { ...user };
+        }
+
+        return null;
+      },
+
+      async createWithGoogle(identity) {
+        const user: User = {
+          id: newId('usr'),
+          googleId: identity.googleId,
+          email: identity.email,
+          name: identity.name,
+          createdAt: new Date().toISOString(),
+        };
+        usersById.set(user.id, user);
+
+        return { ...user };
+      },
+
+      async linkGoogle({ userId, googleId, email, name }) {
+        const found = usersById.get(userId);
+        if (!found) throw new Error(`No such user '${userId}'`);
+
+        const linked: User = { ...found, googleId, email, name };
+        usersById.set(userId, linked);
+
+        return { ...linked };
+      },
+
+      async detachDevice(deviceId) {
+        const fresh: User = {
+          id: newId('usr'),
+          googleId: null,
+          email: null,
+          name: null,
+          createdAt: new Date().toISOString(),
+        };
+        usersById.set(fresh.id, fresh);
+        userIdByDevice.set(deviceId, fresh.id);
+
+        return { ...fresh };
+      },
+
+      async claimDevice({ deviceId, accountUserId }) {
+        const account = usersById.get(accountUserId);
+        if (!account) throw new Error(`No such account '${accountUserId}'`);
+
+        const anonymousId = userIdByDevice.get(deviceId);
+        userIdByDevice.set(deviceId, accountUserId);
+
+        if (!anonymousId || anonymousId === accountUserId) return { ...account };
+
+        // Re-key everything the anonymous user owned. Same rule as Prisma:
+        // move ownership, never copy, and never delete.
+        for (const [id, path] of pathsById) {
+          if (path.userId === anonymousId) {
+            pathsById.set(id, { ...path, userId: accountUserId });
+          }
+        }
+        for (const [id, note] of notesById) {
+          if (note.userId === anonymousId) {
+            notesById.set(id, { ...note, userId: accountUserId });
+          }
+        }
+        for (const [id, session] of sessionsById) {
+          if (session.userId === anonymousId) {
+            sessionsById.set(id, { ...session, userId: accountUserId });
+          }
+        }
+        for (const [key, badge] of badgesByStage) {
+          if (badge.userId === anonymousId) {
+            badgesByStage.set(key, { ...badge, userId: accountUserId });
+          }
+        }
+
+        const stillReferenced = [...userIdByDevice.values()].includes(anonymousId);
+        if (!stillReferenced && usersById.get(anonymousId)?.googleId === null) {
+          usersById.delete(anonymousId);
+        }
+
+        return { ...account };
       },
     },
 
