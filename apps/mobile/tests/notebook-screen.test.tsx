@@ -1,5 +1,5 @@
 import type { NoteWithContext } from '@reps/core';
-import { fireEvent, within } from '@testing-library/react-native';
+import { fireEvent } from '@testing-library/react-native';
 import NotesScreen from '../src/app/(tabs)/notes';
 import { renderScreen } from './support/render-screen';
 
@@ -43,53 +43,104 @@ describe('NotesScreen', () => {
     expect(getByText(/Open a technique and tap/)).toBeOnTheScreen();
   });
 
-  describe('with notes across two techniques', () => {
+  describe('with notes of both kinds', () => {
     beforeEach(() => {
       mockNotebook = {
         loading: false,
         notes: [
           note({ id: 'not_3', techniqueId: 'tec_2', techniqueTitle: 'Barre chords' }),
-          note({
-            id: 'not_2',
-            timestampSec: 65,
-            body: 'Slow down before speeding up.',
-          }),
+          note({ id: 'not_2', timestampSec: 65, body: 'Slow down before speeding up.' }),
           note({ id: 'not_1', timestampSec: null, resourceId: null, body: 'Buy a capo.' }),
         ],
       };
     });
 
-    it('groups notes under the technique they were taken on', async () => {
-      const { getAllByText, getByText } = await renderScreen(<NotesScreen />);
+    it('counts what is there', async () => {
+      const { getByText } = await renderScreen(<NotesScreen />);
 
-      // One heading for tec_1, not two: its notes share it.
-      expect(getAllByText('Chord transitions')).toHaveLength(1);
+      expect(getByText('3 notes')).toBeOnTheScreen();
+    });
+
+    it('says which technique each note came from', async () => {
+      const { getByText, getAllByText } = await renderScreen(<NotesScreen />);
+
       expect(getByText('Barre chords')).toBeOnTheScreen();
-      expect(getByText('3 notes across 2 techniques')).toBeOnTheScreen();
+      expect(getAllByText('Chord transitions')).toHaveLength(2);
     });
 
-    it('shows the moment a timestamped note belongs to', async () => {
-      const { getByTestId } = await renderScreen(<NotesScreen />);
+    /**
+     * The footer line is a promise about where tapping goes. A label that
+     * named a moment the destination ignored would teach the learner to
+     * distrust all of them.
+     */
+    it('promises the exact moment a video note jumps to', async () => {
+      const { getByText } = await renderScreen(<NotesScreen />);
 
-      expect(within(getByTestId('notebook-note-not_3')).getByText('3:42')).toBeOnTheScreen();
-      expect(within(getByTestId('notebook-note-not_2')).getByText('1:05')).toBeOnTheScreen();
+      expect(getByText('Jump to 3:42 in the video')).toBeOnTheScreen();
+      expect(getByText('Jump to 1:05 in the video')).toBeOnTheScreen();
     });
 
-    /** A note with no video has no moment, and must not be given a fake one. */
-    it('shows no timestamp on an untimed note', async () => {
-      const { getByTestId } = await renderScreen(<NotesScreen />);
-      const row = within(getByTestId('notebook-note-not_1'));
+    it('promises only the technique for a note with no moment', async () => {
+      const { getByText } = await renderScreen(<NotesScreen />);
 
-      expect(row.getByText('Buy a capo.')).toBeOnTheScreen();
-      expect(row.queryByText(/^\d+:\d\d$/)).toBeNull();
+      expect(getByText('Open the technique')).toBeOnTheScreen();
     });
 
-    it('opens the technique a note was taken on', async () => {
+    it('carries the anchor through the route, so the promise is kept', async () => {
       const { getByTestId } = await renderScreen(<NotesScreen />);
 
-      await fireEvent.press(getByTestId('notebook-note-not_3'));
+      await fireEvent.press(getByTestId('note-card-not_3'));
 
-      expect(mockPush).toHaveBeenCalledWith('/technique/tec_2');
+      expect(mockPush).toHaveBeenCalledWith('/technique/tec_2?seek=222');
+    });
+
+    it('sends an untimed note to the technique with no anchor', async () => {
+      const { getByTestId } = await renderScreen(<NotesScreen />);
+
+      await fireEvent.press(getByTestId('note-card-not_1'));
+
+      expect(mockPush).toHaveBeenCalledWith('/technique/tec_1');
+    });
+
+    describe('filters', () => {
+      it('counts each kind so an empty filter is predictable', async () => {
+        const { getByText } = await renderScreen(<NotesScreen />);
+
+        expect(getByText('Video · 2')).toBeOnTheScreen();
+        expect(getByText('Technique · 1')).toBeOnTheScreen();
+      });
+
+      it('narrows to video notes', async () => {
+        const { getByTestId, queryByTestId } = await renderScreen(<NotesScreen />);
+
+        await fireEvent.press(getByTestId('filter-Video'));
+
+        expect(getByTestId('note-card-not_3')).toBeOnTheScreen();
+        expect(queryByTestId('note-card-not_1')).toBeNull();
+      });
+
+      it('narrows to notes with no video', async () => {
+        const { getByTestId, queryByTestId } = await renderScreen(<NotesScreen />);
+
+        await fireEvent.press(getByTestId('filter-Technique'));
+
+        expect(getByTestId('note-card-not_1')).toBeOnTheScreen();
+        expect(queryByTestId('note-card-not_3')).toBeNull();
+      });
+
+      /** An empty filter must say why it is empty, not just show nothing. */
+      it('explains an empty filter', async () => {
+        mockNotebook = {
+          loading: false,
+          notes: [note({ id: 'not_1', timestampSec: null, resourceId: null })],
+        };
+
+        const { getByTestId, getByText } = await renderScreen(<NotesScreen />);
+
+        await fireEvent.press(getByTestId('filter-Video'));
+
+        expect(getByText('No video notes yet.')).toBeOnTheScreen();
+      });
     });
   });
 });

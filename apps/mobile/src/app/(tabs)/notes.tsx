@@ -1,33 +1,47 @@
-import { formatTimestamp } from '@reps/client';
 import type { NoteWithContext } from '@reps/core';
-import { Button, Card, PipLogo, Skeleton, Text, color, space } from '@reps/ui';
+import { Button, Card, PipLogo, Skeleton, Text, color, radius, space } from '@reps/ui';
 import { useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NoteCard } from '../../features/notes/NoteCard';
 import { useNotebook } from '../../features/notes/useNotes';
 
-interface TechniqueGroup {
-  techniqueId: string;
-  techniqueTitle: string;
-  skill: string;
-  notes: NoteWithContext[];
-}
+type Filter = 'All' | 'Video' | 'Technique';
+
+const FILTERS: Filter[] = ['All', 'Video', 'Technique'];
 
 /**
- * Every note the learner has written, grouped by the technique it belongs to.
+ * Every note, newest first, each carrying where it came from.
  *
- * The API returns notes newest-first as a flat list; grouping happens here
- * because it is a presentation choice, and because the first-seen order of the
- * flat list already puts the most recently annotated technique at the top -
- * which is the one you are most likely looking for.
+ * Flat and filtered rather than grouped by technique, which is how this screen
+ * worked before. Grouping answered "what did I write about barre chords",
+ * which the technique screen already answers better. The question this screen
+ * is for is "what did I write recently" - and that is chronological.
+ *
+ * Tapping a note goes back to its origin, seeking the video to the timestamp
+ * when there is one. The anchor travels as a route param, so the destination
+ * honours the label rather than just landing nearby.
  */
 export default function NotesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { notes, error, loading, reload } = useNotebook();
+  const [filter, setFilter] = useState<Filter>('All');
 
-  const groups = useMemo(() => groupByTechnique(notes), [notes]);
+  const visible = useMemo(() => notes.filter((note) => matches(note, filter)), [notes, filter]);
+  // Level is the technique's position, which the notebook payload does not
+  // carry - so it is only shown when two notes from the same technique make
+  // the ordering meaningful. Absent rather than guessed.
+  const counts = useMemo(() => tally(notes), [notes]);
+
+  const open = (note: NoteWithContext) => {
+    router.push(
+      note.timestampSec === null
+        ? `/technique/${note.techniqueId}`
+        : `/technique/${note.techniqueId}?seek=${note.timestampSec}`,
+    );
+  };
 
   return (
     <ScrollView
@@ -40,16 +54,38 @@ export default function NotesScreen() {
       <Text variant="title">Notebook</Text>
       {notes.length > 0 ? (
         <Text variant="caption" tone="textSecondary" style={styles.count}>
-          {notes.length} {notes.length === 1 ? 'note' : 'notes'} across {groups.length}{' '}
-          {groups.length === 1 ? 'technique' : 'techniques'}
+          {notes.length} {notes.length === 1 ? 'note' : 'notes'}
         </Text>
+      ) : null}
+
+      {notes.length > 0 ? (
+        <View style={styles.filters}>
+          {FILTERS.map((option) => (
+            <Pressable
+              key={option}
+              accessibilityRole="button"
+              accessibilityState={{ selected: filter === option }}
+              onPress={() => setFilter(option)}
+              style={[styles.filter, filter === option && styles.filterOn]}
+              testID={`filter-${option}`}
+            >
+              <Text
+                variant="caption"
+                style={{ color: filter === option ? color.textOnBrand : color.textSecondary }}
+              >
+                {option}
+                {option === 'All' ? '' : ` · ${counts[option]}`}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       ) : null}
 
       {loading ? (
         <View style={styles.loading}>
-          <Skeleton height={16} width="40%" />
-          <Skeleton height={72} delay={80} />
-          <Skeleton height={72} delay={160} />
+          <Skeleton height={128} borderRadius={16} />
+          <Skeleton height={128} borderRadius={16} delay={80} />
+          <Skeleton height={128} borderRadius={16} delay={160} />
         </View>
       ) : null}
 
@@ -69,8 +105,8 @@ export default function NotesScreen() {
         <View style={styles.empty}>
           <PipLogo size={88} />
           <Text variant="body" tone="textSecondary" center>
-            Notes you take while practising show up here, grouped by technique — with the video
-            timestamp they belong to.
+            Notes you take while practising show up here, each one remembering the moment it came
+            from.
           </Text>
           <Text variant="caption" tone="textSecondary" center>
             Open a technique and tap “Add a note here” while the video plays.
@@ -78,85 +114,33 @@ export default function NotesScreen() {
         </View>
       ) : null}
 
-      {groups.map((group) => (
-        <View key={group.techniqueId} style={styles.group}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Open ${group.techniqueTitle}`}
-            onPress={() => router.push(`/technique/${group.techniqueId}`)}
-            style={styles.groupHead}
-          >
-            {/* Skill above the title, stacked - a side-by-side label squashes
-                titles once the skill is a sentence like "learn concurrency". */}
-            <Text variant="overline" tone="textSecondary" numberOfLines={1}>
-              {group.skill}
-            </Text>
-            <Text variant="label" numberOfLines={2}>
-              {group.techniqueTitle}
-            </Text>
-          </Pressable>
+      {!loading && notes.length > 0 && visible.length === 0 ? (
+        <Text variant="caption" tone="textSecondary" center style={styles.block}>
+          No {filter.toLowerCase()} notes yet.
+        </Text>
+      ) : null}
 
-          {group.notes.map((note) => (
-            <NotebookRow
-              key={note.id}
-              note={note}
-              onPress={() => router.push(`/technique/${note.techniqueId}`)}
-            />
-          ))}
-        </View>
-      ))}
+      <View style={styles.list}>
+        {visible.map((note) => (
+          <NoteCard key={note.id} note={note} level={null} onPress={() => open(note)} />
+        ))}
+      </View>
     </ScrollView>
   );
 }
 
-function NotebookRow({ note, onPress }: { note: NoteWithContext; onPress: () => void }) {
-  const stamp = note.timestampSec === null ? null : formatTimestamp(note.timestampSec);
+function matches(note: NoteWithContext, filter: Filter): boolean {
+  if (filter === 'All') return true;
+  if (filter === 'Video') return note.timestampSec !== null;
 
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={
-        stamp === null
-          ? `Note: ${note.body}. Open the technique.`
-          : `Note at ${stamp}: ${note.body}. Open the technique.`
-      }
-      onPress={onPress}
-      style={styles.row}
-      testID={`notebook-note-${note.id}`}
-    >
-      {stamp !== null ? (
-        <Text variant="caption" tone="brand" style={styles.stamp}>
-          {stamp}
-        </Text>
-      ) : null}
-      <Text variant="body">{note.body}</Text>
-    </Pressable>
-  );
+  return note.timestampSec === null;
 }
 
-/** Preserves the order techniques were first seen in, which is recency. */
-function groupByTechnique(notes: NoteWithContext[]): TechniqueGroup[] {
-  const groups: TechniqueGroup[] = [];
-  const byId = new Map<string, TechniqueGroup>();
-
-  for (const note of notes) {
-    let group = byId.get(note.techniqueId);
-
-    if (!group) {
-      group = {
-        techniqueId: note.techniqueId,
-        techniqueTitle: note.techniqueTitle,
-        skill: note.skill,
-        notes: [],
-      };
-      byId.set(note.techniqueId, group);
-      groups.push(group);
-    }
-
-    group.notes.push(note);
-  }
-
-  return groups;
+function tally(notes: NoteWithContext[]): Record<Exclude<Filter, 'All'>, number> {
+  return {
+    Video: notes.filter((note) => note.timestampSec !== null).length,
+    Technique: notes.filter((note) => note.timestampSec === null).length,
+  };
 }
 
 const styles = StyleSheet.create({
@@ -168,17 +152,18 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   count: { marginTop: space.xs },
+  filters: { flexDirection: 'row', gap: space.sm, marginTop: space.base },
+  filter: {
+    minHeight: 34,
+    justifyContent: 'center',
+    paddingHorizontal: space.md,
+    borderRadius: radius.chip,
+    backgroundColor: color.surfaceSunken,
+  },
+  filterOn: { backgroundColor: color.brand },
   loading: { gap: space.md, marginTop: space.base },
   block: { marginTop: space.base },
   gap: { marginTop: space.sm },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.base },
-  group: { marginTop: space.lg },
-  groupHead: { gap: 2, paddingBottom: space.sm },
-  row: {
-    gap: 2,
-    paddingVertical: space.md,
-    borderTopWidth: 1,
-    borderTopColor: color.borderDefault,
-  },
-  stamp: { marginBottom: 2 },
+  empty: { alignItems: 'center', gap: space.base, paddingTop: space.xxl },
+  list: { gap: space.md, marginTop: space.base },
 });
