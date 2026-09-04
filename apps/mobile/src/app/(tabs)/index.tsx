@@ -1,54 +1,82 @@
-import { pathProgress } from '@reps/client';
-import type { LearningPathSummary, Technique } from '@reps/core';
 import {
-  Button,
-  Card,
-  PipLogo,
-  ProgressBar,
-  Skeleton,
-  Text,
-  color,
-  space,
-  useBreakpoint,
-} from '@reps/ui';
+  heatmap,
+  masteryOf,
+  resumePoints,
+  today,
+  weekStats,
+  type NoteWithContext,
+  type ResumePoint,
+} from '@reps/core';
+import { Button, Card, GradientPanel, PipLogo, Text, color, space, useBreakpoint } from '@reps/ui';
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StreakChip } from '../../features/paths/StreakChip';
+import { useNotebook } from '../../features/notes/useNotes';
 import { usePath, usePathList } from '../../features/paths/usePaths';
 import { usePracticeHistory, useWeek } from '../../features/progress/useStreak';
-import { HeroPager, nextGateLine } from '../../features/today/HeroPager';
-import { SessionPlan } from '../../features/today/SessionPlan';
+import { HeroPage } from '../../features/today/HeroPage';
+import { HeroPager } from '../../features/today/HeroPager';
+import { InsightTiles } from '../../features/today/InsightTiles';
+import { NextGateCard } from '../../features/today/NextGateCard';
+import { PracticeHeatmap, weeksThatFit } from '../../features/today/PracticeHeatmap';
+import { ResumeRows } from '../../features/today/ResumeRows';
+import { SaidShelf } from '../../features/today/SaidShelf';
+import { SavedShelf, savedItems } from '../../features/today/SavedShelf';
+import { Section } from '../../features/today/Section';
+import { TodayHeader, todayLabel } from '../../features/today/TodayHeader';
+import {
+  HeatmapSkeleton,
+  HeroSkeleton,
+  InsightTilesSkeleton,
+  NextGateSkeleton,
+  SavedShelfSkeleton,
+} from '../../features/today/TodaySkeletons';
+import { WeekChart } from '../../features/today/WeekChart';
 import { WeekStrip } from '../../features/today/WeekStrip';
 import { useApp } from '../../providers/app-provider';
+
+/** Two of each shelf. More and the home screen becomes an archive. */
+const SAID_LIMIT = 2;
+const SAVED_LIMIT = 6;
+const RESUME_LIMIT = 3;
+
+/** The page's own width ceiling, so the gradient never spans a monitor. */
+const PHONE_MAX = 640;
+const WIDE_MAX = 1080;
+/** Width of the right-hand pane on a wide layout. */
+const SIDE_COLUMN = 320;
 
 /**
  * Today is the session, not the path.
  *
  * The Path tab already draws every technique, so listing them again here would
  * be two views of one thing. This screen carries what the map cannot: the rep
- * to perform, how the week is going, and one button to begin.
+ * to perform, how the week is going, what the learner said last time, and one
+ * button to begin.
  *
- * Every block on it is backed by stored data. The heatmap, quick-recall card
- * and saved shelf from the design are not here yet because the data behind them
- * is not - a block appears when its source does, rather than sitting empty.
+ * **Reading order.** The gradient panel at the top holds the decision - one
+ * hobby per page, swipe for another. Everything under it is evidence for that
+ * decision, in cards on the page, and the panel's soft skirt is what separates
+ * "act" from "read". Every block below is backed by stored data, and a block
+ * with no data behind it does not render at all rather than sitting empty.
  */
 export default function TodayScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isWide } = useBreakpoint();
+  const { width } = useWindowDimensions();
   const { focusPath, reconcileOnboarded } = useApp();
+
   const { paths, focusedId, loading: listLoading, error: listError, reload } = usePathList();
-  const { path } = usePath(focusedId);
+  const { path, loading: pathLoading } = usePath(focusedId);
   const { entries, streak } = usePracticeHistory();
+  const { notes } = useNotebook();
 
   const focusedSummary = paths.find((item) => item.id === focusedId) ?? null;
-  const week = useWeek(
-    entries,
-    focusedSummary?.dailyMinutes ?? 20,
-    focusedSummary?.daysPerWeek ?? 5,
-  );
+  const dailyMinutes = focusedSummary?.dailyMinutes ?? 20;
+  const daysPerWeek = focusedSummary?.daysPerWeek ?? 5;
+  const week = useWeek(entries, dailyMinutes, daysPerWeek);
 
   /*
     The one place that knows the real path count, so it is where the cached
@@ -60,46 +88,188 @@ export default function TodayScreen() {
     if (!listLoading && !listError) reconcileOnboarded(paths.length);
   }, [listLoading, listError, paths.length, reconcileOnboarded]);
 
+  const contentWidth = Math.min(width, isWide ? WIDE_MAX : PHONE_MAX);
+  // The panel bleeds to the edges, so a page is the whole panel.
+  const pageWidth = Math.min(width, PHONE_MAX);
+
+  const stats = useMemo(() => weekStats(week, entries, daysPerWeek), [week, entries, daysPerWeek]);
+
+  const grid = useMemo(() => {
+    // A card's inner width: the column, minus its gutter, minus card padding.
+    const column = isWide ? SIDE_COLUMN : contentWidth;
+    const available = column - space.base * 2 - space.base * 2;
+
+    return heatmap(entries, today(), {
+      weeks: weeksThatFit(available),
+      dailyMinutes,
+    });
+  }, [entries, isWide, contentWidth, dailyMinutes]);
+
+  const said = useMemo(() => notes.slice(0, SAID_LIMIT), [notes]);
+  const resume = useMemo(() => resumePoints(notes, RESUME_LIMIT), [notes]);
+  const saved = useMemo(() => (path ? savedItems(path, SAVED_LIMIT) : []), [path]);
+
   const focusedIndex = Math.max(
     paths.findIndex((item) => item.id === focusedId),
     0,
   );
   const active = path?.techniques.find((technique) => technique.status === 'active') ?? null;
 
+  const openNote = (note: NoteWithContext) =>
+    router.push({
+      pathname: '/technique/[id]',
+      params: {
+        id: note.techniqueId,
+        ...(note.timestampSec === null ? {} : { seek: String(note.timestampSec) }),
+      },
+    });
+
+  const openResume = (point: ResumePoint) =>
+    router.push({
+      pathname: '/technique/[id]',
+      params: { id: point.techniqueId, seek: String(point.atSec) },
+    });
+
+  if (!listLoading && !listError && paths.length === 0) {
+    return (
+      <View style={styles.screen}>
+        <View style={[styles.empty, { paddingTop: insets.top + space.xxl }]}>
+          <PipLogo size={88} />
+          <Text variant="heading" center>
+            Nothing on today
+          </Text>
+          <Text variant="body" tone="textSecondary" center>
+            Pick a hobby and Reps builds a short path of 5–8 techniques.
+          </Text>
+          <Button
+            label="Start a hobby"
+            onPress={() => router.push('/onboarding/skill')}
+            testID="start-hobby"
+          />
+        </View>
+      </View>
+    );
+  }
+
+  /*
+    The hero, and the panels that describe the hobby in focus.
+
+    These are the only parts a swipe changes, which is why they carry their own
+    skeletons: the header, the strip and the week chart are the same whichever
+    hobby is showing, and replacing them too would make a swipe look like a
+    cold start.
+  */
+  const hero =
+    listLoading || !focusedSummary ? (
+      <HeroSkeleton />
+    ) : (
+      <HeroPager
+        paths={paths}
+        initialIndex={focusedIndex}
+        onFocus={focusPath}
+        onAddPath={() => router.push('/onboarding/skill')}
+        pageWidth={pageWidth}
+        renderPage={(summary) =>
+          summary.id === focusedId && pathLoading ? (
+            <HeroSkeleton />
+          ) : (
+            <HeroPage
+              summary={summary}
+              active={summary.id === focusedId ? active : null}
+              streak={streak}
+              onStart={(techniqueId) => router.push(`/practice/${techniqueId}`)}
+              onOpen={(techniqueId) => router.push(`/technique/${techniqueId}`)}
+            />
+          )
+        }
+      />
+    );
+
+  const aboutTheHobby = (
+    <>
+      <Section title="My practice today" bleed>
+        {pathLoading || !path ? (
+          <InsightTilesSkeleton />
+        ) : (
+          <InsightTiles
+            mastery={active ? masteryOf(active) : 1}
+            streak={streak.current}
+            longestStreak={streak.longest}
+            xp={path.xp}
+            onLogPractice={() => active && router.push(`/practice/${active.id}`)}
+            onOpenTechnique={() => active && router.push(`/technique/${active.id}`)}
+            onOpenProfile={() => router.push('/(tabs)/me')}
+          />
+        )}
+      </Section>
+
+      <Section title="Next gate">
+        {pathLoading || !path ? (
+          <NextGateSkeleton />
+        ) : (
+          <NextGateCard path={path} onOpenPath={() => router.push('/(tabs)/path')} />
+        )}
+      </Section>
+    </>
+  );
+
+  const aboutTheWeek = (
+    <>
+      <Section title="Last 7 days" meta={`${stats.totalMinutes} min total`}>
+        <WeekChart week={week} stats={stats} dailyMinutes={dailyMinutes} />
+      </Section>
+
+      <Section
+        title="The whole path"
+        meta={`${grid.weeks} weeks · ${grid.sessions} ${grid.sessions === 1 ? 'session' : 'sessions'}`}
+      >
+        {entries.length === 0 && !listError ? <HeatmapSkeleton /> : <PracticeHeatmap grid={grid} />}
+      </Section>
+    </>
+  );
+
+  const aboutTheWork = (
+    <>
+      {/* Notes and resume rows belong to the learner, not to a path, so they
+          do not blank out on a swipe. */}
+      <Section title="You said">
+        {said.length === 0 ? null : <SaidShelf notes={said} onOpen={openNote} />}
+      </Section>
+
+      <Section title="Saved for later" bleed>
+        {pathLoading ? (
+          <SavedShelfSkeleton />
+        ) : saved.length === 0 ? null : (
+          <SavedShelf
+            items={saved}
+            onOpen={(item) => router.push(`/technique/${item.techniqueId}`)}
+          />
+        )}
+      </Section>
+
+      <Section title="Pick up where you stopped">
+        {resume.length === 0 ? null : <ResumeRows points={resume} onResume={openResume} />}
+      </Section>
+    </>
+  );
+
   return (
     <View style={styles.screen}>
-      {/* One number in the HUD, on the right, and nothing else competing with it. */}
-      <View
-        style={[
-          isWide ? styles.hudWide : styles.hud,
-          { paddingTop: insets.top + space.sm },
-        ]}
-      >
-        <PipLogo size={32} />
-        <Text variant="heading" style={styles.brand}>
-          Reps
-        </Text>
-        <View style={styles.spacer} />
-        <StreakChip days={streak.current} />
+      <View style={[styles.fixed, { paddingTop: insets.top + space.sm, maxWidth: contentWidth }]}>
+        <TodayHeader dateLabel={todayLabel()} streak={streak.current} />
+        <View style={styles.strip}>
+          <WeekStrip week={week} />
+        </View>
       </View>
 
       <ScrollView
-        contentContainerStyle={[
-          isWide ? styles.contentWide : styles.content,
-          { paddingBottom: insets.bottom + space.xl },
-        ]}
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xl }]}
       >
-        {listLoading ? (
-          <>
-            <Skeleton height={62} />
-            <Skeleton height={210} delay={80} />
-          </>
-        ) : null}
-
         {listError ? (
-          <Card>
+          <Card style={styles.errorCard}>
             <Text variant="heading">Can’t reach Reps</Text>
-            <Text variant="body" tone="textSecondary" style={styles.gap}>
+            <Text variant="body" tone="textSecondary" style={styles.errorLine}>
               {listError.code === 'NetworkError'
                 ? 'Check that the API is running and you’re on the same network.'
                 : listError.message}
@@ -108,221 +278,49 @@ export default function TodayScreen() {
           </Card>
         ) : null}
 
-        {!listLoading && !listError && paths.length === 0 ? (
-          <View style={styles.empty}>
-            <PipLogo size={88} />
-            <Text variant="heading" center>
-              Nothing on today
-            </Text>
-            <Text variant="body" tone="textSecondary" center>
-              Pick a hobby and Reps builds a short path of 5–8 techniques.
-            </Text>
-            <Button
-              label="Start a hobby"
-              onPress={() => router.push('/onboarding/skill')}
-              testID="start-hobby"
-            />
-          </View>
-        ) : null}
+        <GradientPanel
+          from={color.brandSoft}
+          to={color.surfacePage}
+          bottomRadius={34}
+          style={[styles.gradient, { maxWidth: pageWidth }]}
+        >
+          {hero}
+        </GradientPanel>
 
-        {paths.length > 0 ? (
-          /*
-            Wide puts the week beside the hero rather than above it. Stacked,
-            the CTA is pushed below the fold on a short desktop window - and
-            the week is context for the decision, not something to scroll past
-            on the way to it.
-          */
-          <View style={isWide ? styles.columns : undefined}>
-            <View style={isWide ? styles.sideColumn : undefined}>
-              <WeekStrip week={week} />
-              <Text variant="caption" tone="textSecondary" center style={styles.weekLine}>
-                {streak.current === 0
-                  ? 'No streak yet. One session starts it.'
-                  : streak.practisedToday
-                    ? `${streak.current} day streak — today is in.`
-                    : `${streak.current} day streak. Practise today to keep it.`}
-              </Text>
+        {isWide ? (
+          <View style={[styles.columns, { maxWidth: contentWidth }]}>
+            <View style={styles.mainColumn}>
+              {aboutTheHobby}
+              {aboutTheWork}
             </View>
-
-            <View style={isWide ? styles.mainColumn : undefined}>
-              <HeroPager
-                paths={paths}
-                initialIndex={focusedIndex}
-                onFocus={focusPath}
-                onAddPath={() => router.push('/onboarding/skill')}
-                renderPage={(summary) => (
-                  <HeroPage
-                    summary={summary}
-                    active={summary.id === focusedId ? active : null}
-                    onStart={(techniqueId) => router.push(`/practice/${techniqueId}`)}
-                    onOpen={(techniqueId) => router.push(`/technique/${techniqueId}`)}
-                  />
-                )}
-              />
-            </View>
+            <View style={styles.sideColumn}>{aboutTheWeek}</View>
           </View>
-        ) : null}
+        ) : (
+          <View style={[styles.stack, { maxWidth: contentWidth }]}>
+            {aboutTheHobby}
+            {aboutTheWeek}
+            {aboutTheWork}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
 }
 
-/**
- * One path's page: what it is, where you are in it, and the next rep.
- *
- * The active technique is only supplied for the focused path - the others show
- * their progress without a CTA, because starting a rep on a path you have only
- * swiped past would be starting it by accident.
- */
-function HeroPage({
-  summary,
-  active,
-  onStart,
-  onOpen,
-}: {
-  summary: LearningPathSummary;
-  active: Technique | null;
-  onStart: (techniqueId: string) => void;
-  onOpen: (techniqueId: string) => void;
-}) {
-  const progress = pathProgress(summary);
-  const gate = nextGateLine(summary);
-  const finished = summary.completedCount >= summary.techniqueCount;
-
-  return (
-    <Card style={styles.hero}>
-      {/* Skill above the bar, count beside it: a sentence-length skill name
-          would otherwise shove the count off the row. */}
-      <Text variant="label" numberOfLines={2}>
-        {summary.skill}
-      </Text>
-      <View style={styles.progressRow}>
-        <ProgressBar value={progress} tone="progress" />
-        <Text variant="caption" tone="textSecondary" style={styles.count}>
-          {summary.completedCount} of {summary.techniqueCount}
-        </Text>
-      </View>
-      <Text variant="caption" tone="textSecondary" numberOfLines={2} style={styles.goal}>
-        {summary.goal}
-      </Text>
-
-      {finished ? (
-        <View style={styles.finished}>
-          <Text variant="heading">Path complete</Text>
-          <Text variant="caption" tone="textSecondary">
-            You did the thing you came here for.
-          </Text>
-        </View>
-      ) : active ? (
-        <>
-          <Text variant="overline" tone="textSecondary" style={styles.kicker}>
-            Next up · level {active.order + 1}
-          </Text>
-          <Text variant="title" numberOfLines={2} style={styles.title}>
-            {active.title}
-          </Text>
-          <Text variant="caption" tone="textSecondary" style={styles.meta}>
-            {active.estimatedMinutes} min · {active.modality.replace(/_/g, ' ')}
-          </Text>
-
-          <SessionPlan
-            modality={active.modality}
-            preferredFormats={summary.preferredFormats}
-            totalMinutes={active.estimatedMinutes}
-          />
-
-          {/* Why this rep matters, phrased against the learner's own goal. */}
-          <View style={styles.payoff}>
-            <Text variant="caption" tone="progressText">
-              {active.whyItMatters}
-            </Text>
-          </View>
-
-          <Button
-            label="Start the rep"
-            onPress={() => onStart(active.id)}
-            style={styles.cta}
-            testID="start-rep"
-          />
-          <Button
-            label="See the details first"
-            variant="ghost"
-            onPress={() => onOpen(active.id)}
-          />
-        </>
-      ) : (
-        <Text variant="caption" tone="textSecondary" style={styles.kicker}>
-          Swipe to this hobby to pick it up.
-        </Text>
-      )}
-
-      {gate ? (
-        <Text variant="caption" tone="textSecondary" center style={styles.gate}>
-          {gate}
-        </Text>
-      ) : null}
-    </Card>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.surfacePage },
-  hud: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    paddingHorizontal: space.base,
-    paddingBottom: space.sm,
-    width: '100%',
-    maxWidth: 640,
-    alignSelf: 'center',
-  },
-  hudWide: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    paddingHorizontal: space.lg,
-    paddingBottom: space.sm,
-    width: '100%',
-    maxWidth: 1080,
-    alignSelf: 'center',
-  },
-  brand: { letterSpacing: -0.3 },
-  spacer: { flex: 1 },
-  content: {
-    paddingHorizontal: space.base,
-    gap: space.sm,
-    width: '100%',
-    maxWidth: 640,
-    alignSelf: 'center',
-  },
-  contentWide: {
-    paddingHorizontal: space.lg,
-    gap: space.sm,
-    width: '100%',
-    maxWidth: 1080,
-    alignSelf: 'center',
-  },
-  columns: { flexDirection: 'row', gap: space.xl, alignItems: 'flex-start' },
-  sideColumn: { width: 300, flexShrink: 0 },
+  fixed: { width: '100%', alignSelf: 'center' },
+  strip: { paddingHorizontal: space.md, paddingBottom: space.sm },
+  scroll: { flex: 1 },
+  /* No horizontal padding: the gradient runs to the screen edges, and each
+     section supplies its own gutter. */
+  content: { alignItems: 'center' },
+  gradient: { width: '100%' },
+  stack: { width: '100%' },
+  columns: { width: '100%', flexDirection: 'row', gap: space.xl, alignItems: 'flex-start' },
   mainColumn: { flex: 1, minWidth: 0 },
-  gap: { marginTop: space.sm },
-  empty: { alignItems: 'center', gap: space.base, paddingTop: space.xxl },
-  weekLine: { marginBottom: space.sm },
-  hero: { gap: space.xs },
-  progressRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: space.xs },
-  count: { flexShrink: 0 },
-  goal: { marginTop: space.xs },
-  kicker: { marginTop: space.base },
-  title: { marginTop: space.xs },
-  meta: { marginBottom: space.md },
-  payoff: {
-    marginTop: space.md,
-    padding: space.md,
-    borderRadius: 12,
-    backgroundColor: color.progressSoft,
-  },
-  cta: { marginTop: space.base },
-  finished: { marginTop: space.base, gap: space.xs },
-  gate: { marginTop: space.md },
+  sideColumn: { width: SIDE_COLUMN, flexShrink: 0 },
+  empty: { alignItems: 'center', gap: space.base, paddingHorizontal: space.base },
+  errorCard: { marginHorizontal: space.base, marginTop: space.sm, alignSelf: 'stretch' },
+  errorLine: { marginTop: space.sm },
 });

@@ -1,4 +1,11 @@
-import type { LearningPath, LearningPathSummary, Technique } from '@reps/core';
+import type {
+  Confidence,
+  LearningPath,
+  LearningPathSummary,
+  NoteWithContext,
+  Resource,
+  Technique,
+} from '@reps/core';
 import { fireEvent } from '@testing-library/react-native';
 import TodayScreen from '../src/app/(tabs)/index';
 import { renderScreen } from './support/render-screen';
@@ -29,8 +36,15 @@ let mockList: {
   loading: boolean;
 };
 let mockPathState: { path: LearningPath | null; loading: boolean };
-
-let mockEntries: { at: string; minutes: number; xp: number; pathId: string }[] = [];
+let mockEntries: {
+  at: string;
+  minutes: number;
+  xp: number;
+  pathId: string;
+  techniqueId: string;
+  confidence: Confidence;
+}[] = [];
+let mockNotes: NoteWithContext[] = [];
 
 jest.mock('../src/features/progress/useStreak', () => {
   const core = jest.requireActual('@reps/core');
@@ -55,6 +69,10 @@ jest.mock('../src/features/paths/usePaths', () => ({
   usePath: () => ({ ...mockPathState, error: null, reload: mockReload }),
 }));
 
+jest.mock('../src/features/notes/useNotes', () => ({
+  useNotebook: () => ({ notes: mockNotes, error: null, loading: false, reload: jest.fn() }),
+}));
+
 function technique(overrides: Partial<Technique> & { id: string }): Technique {
   return {
     pathId: 'path_guitar',
@@ -75,6 +93,36 @@ function technique(overrides: Partial<Technique> & { id: string }): Technique {
   };
 }
 
+function resource(overrides: Partial<Resource> & { id: string }): Resource {
+  return {
+    techniqueId: 'tec_2',
+    format: 'video',
+    title: 'Fast chord changes: the pivot trick',
+    url: 'https://example.test/watch',
+    thumbnailUrl: null,
+    source: 'Paul Davids',
+    durationSec: 784,
+    selectionReason: 'Shortest demonstration of the pivot at your level.',
+    ...overrides,
+  };
+}
+
+function note(overrides: Partial<NoteWithContext> & { id: string }): NoteWithContext {
+  return {
+    userId: 'usr_1',
+    techniqueId: 'tec_2',
+    techniqueTitle: 'Chord transitions',
+    pathId: 'path_guitar',
+    skill: 'guitar',
+    resourceId: 'res_1',
+    timestampSec: 222,
+    body: 'Pivot finger trick actually works. G to C is nearly clean.',
+    createdAt: '2026-09-04T10:00:00.000Z',
+    updatedAt: '2026-09-04T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
 function summary(id: string, skill: string, completed = 1): LearningPathSummary {
   return {
     id,
@@ -89,11 +137,10 @@ function summary(id: string, skill: string, completed = 1): LearningPathSummary 
     language: 'en',
     createdAt: '2026-09-01T10:00:00.000Z',
     updatedAt: '2026-09-02T10:00:00.000Z',
-    xp: 0,
+    xp: 40,
     badges: [],
     techniqueCount: 6,
     completedCount: completed,
-    ...(id === 'path_guitar' ? {} : {}),
   };
 }
 
@@ -108,6 +155,22 @@ const guitarPath: LearningPath = {
   ],
 } as LearningPath;
 
+/** A session on the given day, at midday so no test depends on the zone. */
+function entryDaysAgo(back: number, confidence: Confidence = 'getting_there') {
+  const at = new Date();
+  at.setDate(at.getDate() - back);
+  at.setHours(12, 0, 0, 0);
+
+  return {
+    at: at.toISOString(),
+    minutes: 20,
+    xp: 40,
+    pathId: 'path_guitar',
+    techniqueId: 'tec_2',
+    confidence,
+  };
+}
+
 describe('TodayScreen', () => {
   beforeEach(() => {
     mockPush.mockClear();
@@ -120,130 +183,359 @@ describe('TodayScreen', () => {
     };
     mockPathState = { path: guitarPath, loading: false };
     mockEntries = [];
+    mockNotes = [];
   });
 
-  it('leads with the next rep and one button to start it', async () => {
-    const { getByText, getByTestId } = await renderScreen(<TodayScreen />);
+  describe('the hero', () => {
+    it('leads with the next rep and one button to start it', async () => {
+      const { getByText, getByTestId } = await renderScreen(<TodayScreen />);
 
-    expect(getByText('Chord transitions')).toBeOnTheScreen();
-    expect(getByTestId('start-rep')).toBeOnTheScreen();
+      expect(getByText('Chord transitions')).toBeOnTheScreen();
+      expect(getByTestId('start-rep')).toBeOnTheScreen();
+    });
+
+    it('starts the rep in its own session rather than the technique page', async () => {
+      const { getByTestId } = await renderScreen(<TodayScreen />);
+
+      await fireEvent.press(getByTestId('start-rep'));
+
+      expect(mockPush).toHaveBeenCalledWith('/practice/tec_2');
+    });
+
+    it('offers the detail page without making it the primary action', async () => {
+      const { getByText } = await renderScreen(<TodayScreen />);
+
+      await fireEvent.press(getByText('See the details first'));
+
+      expect(mockPush).toHaveBeenCalledWith('/technique/tec_2');
+    });
+
+    /** Which hobby, and how far in, in one line above the title. */
+    it('places the rep in its path', async () => {
+      const { getByText } = await renderScreen(<TodayScreen />);
+
+      expect(getByText('GUITAR · LEVEL 2 OF 6')).toBeOnTheScreen();
+    });
+
+    it('keeps a sentence-length skill name on screen', async () => {
+      mockList = {
+        paths: [summary('path_go', 'I want to learn concurrency in Golang')],
+        focusedId: 'path_go',
+        error: null,
+        loading: false,
+      };
+
+      const { getByText } = await renderScreen(<TodayScreen />);
+
+      expect(getByText('I WANT TO LEARN CONCURRENCY IN GOLANG · LEVEL 2 OF 6')).toBeOnTheScreen();
+    });
+
+    /** Why this rep, phrased against the learner's own goal. */
+    it('says what the rep is for', async () => {
+      const { getByText } = await renderScreen(<TodayScreen />);
+
+      expect(
+        getByText('Smooth changes are the difference between knowing chords and playing a song.'),
+      ).toBeOnTheScreen();
+    });
+
+    /**
+     * The session plan replaced the mascot in the hero. It answers the question
+     * somebody opening the app actually has: what am I about to spend 15
+     * minutes doing?
+     */
+    it('breaks the session into stages with minutes on each', async () => {
+      const { getByText } = await renderScreen(<TodayScreen />);
+
+      expect(getByText('Watch')).toBeOnTheScreen();
+      expect(getByText('Reflect')).toBeOnTheScreen();
+      expect(getByText('1 min')).toBeOnTheScreen();
+    });
+
+    /** Two hobbies are peers: both are pages, neither is buried in a menu. */
+    it('gives every path a page and offers one more for a new hobby', async () => {
+      const { getByText, getByTestId } = await renderScreen(<TodayScreen />);
+
+      expect(getByText('GUITAR · LEVEL 2 OF 6')).toBeOnTheScreen();
+      expect(getByText('CHESS')).toBeOnTheScreen();
+      expect(getByTestId('add-path')).toBeOnTheScreen();
+    });
+
+    it('starts another hobby from the last page', async () => {
+      const { getByTestId } = await renderScreen(<TodayScreen />);
+
+      await fireEvent.press(getByTestId('add-path'));
+
+      expect(mockPush).toHaveBeenCalledWith('/onboarding/skill');
+    });
+
+    /** Starting a rep on a path you only swiped past would be an accident. */
+    it('shows no start button on an unfocused path', async () => {
+      const { getAllByTestId, getByText } = await renderScreen(<TodayScreen />);
+
+      expect(getAllByTestId('start-rep')).toHaveLength(1);
+      // The unfocused page shows where that hobby stands instead.
+      expect(getByText('0 of 6 levels · 0%')).toBeOnTheScreen();
+    });
+
+    describe('the nudge above the title', () => {
+      it('asks for the first session when there has never been one', async () => {
+        const { getByText } = await renderScreen(<TodayScreen />);
+
+        expect(getByText('One session starts the streak')).toBeOnTheScreen();
+      });
+
+      it('says today is in once it has been practised', async () => {
+        mockEntries = [entryDaysAgo(0)];
+
+        const { getByText } = await renderScreen(<TodayScreen />);
+
+        expect(getByText('1-day streak · today is in')).toBeOnTheScreen();
+      });
+
+      /** A day not yet practised must not read as a broken streak at 9am. */
+      it("holds yesterday's streak and says what is at stake", async () => {
+        mockEntries = [entryDaysAgo(1)];
+
+        const { getByText } = await renderScreen(<TodayScreen />);
+
+        expect(getByText('1-day streak · today keeps it alive')).toBeOnTheScreen();
+      });
+
+      it('offers a restart rather than a scolding after a lapse', async () => {
+        mockEntries = [entryDaysAgo(6)];
+
+        const { getByText } = await renderScreen(<TodayScreen />);
+
+        expect(getByText('A short session restarts the streak')).toBeOnTheScreen();
+      });
+
+      /** Half-finished work is a better reason to open the app than a streak. */
+      it('points at the half-done level ahead of the calendar', async () => {
+        mockPathState = {
+          path: {
+            ...guitarPath,
+            techniques: guitarPath.techniques.map((item) =>
+              item.id === 'tec_2' ? { ...item, practiceMinutes: 12 } : item,
+            ),
+          },
+          loading: false,
+        };
+        mockEntries = [entryDaysAgo(0)];
+
+        const { getByText } = await renderScreen(<TodayScreen />);
+
+        expect(getByText('One solid rep and the next level opens')).toBeOnTheScreen();
+      });
+    });
   });
 
-  it('starts the rep in its own session rather than the technique page', async () => {
-    const { getByTestId } = await renderScreen(<TodayScreen />);
+  describe('the panels below', () => {
+    it('offers a way to log practice that happened away from the phone', async () => {
+      const { getByTestId } = await renderScreen(<TodayScreen />);
 
-    await fireEvent.press(getByTestId('start-rep'));
+      await fireEvent.press(getByTestId('insight-log'));
 
-    expect(mockPush).toHaveBeenCalledWith('/practice/tec_2');
+      expect(mockPush).toHaveBeenCalledWith('/practice/tec_2');
+    });
+
+    it('reports the week as minutes, sessions hit and levels cleared', async () => {
+      mockEntries = [entryDaysAgo(0, 'solid'), entryDaysAgo(1)];
+
+      const { getByText } = await renderScreen(<TodayScreen />);
+
+      expect(getByText('40 min total')).toBeOnTheScreen();
+      expect(getByText('2/5')).toBeOnTheScreen();
+      expect(getByText('20 min')).toBeOnTheScreen();
+      expect(getByText('Sessions hit')).toBeOnTheScreen();
+    });
+
+    /** The gate is named after its capstone, not "Stage 1". */
+    it('names the next gate and how far off it is', async () => {
+      const { getByText, getByTestId } = await renderScreen(<TodayScreen />);
+
+      expect(getByText('Barre chords')).toBeOnTheScreen();
+      expect(
+        getByText('2 more techniques and the gate opens — badge, and the next stage unlocks.'),
+      ).toBeOnTheScreen();
+
+      await fireEvent.press(getByTestId('next-gate'));
+      expect(mockPush).toHaveBeenCalledWith('/(tabs)/path');
+    });
+
+    it('counts the whole history, not just this week', async () => {
+      mockEntries = [entryDaysAgo(0), entryDaysAgo(30)];
+
+      const { getByText } = await renderScreen(<TodayScreen />);
+
+      expect(getByText(/2 sessions$/)).toBeOnTheScreen();
+    });
   });
 
-  it('offers the detail page without making it the primary action', async () => {
-    const { getByText } = await renderScreen(<TodayScreen />);
+  describe('the notes section', () => {
+    it('puts the learner’s own words back in front of them', async () => {
+      mockNotes = [note({ id: 'note_1' })];
 
-    await fireEvent.press(getByText('See the details first'));
+      const { getByText, getByTestId, getAllByText } = await renderScreen(<TodayScreen />);
 
-    expect(mockPush).toHaveBeenCalledWith('/technique/tec_2');
+      expect(getByText('You said')).toBeOnTheScreen();
+      expect(getByTestId('said-note_1')).toBeOnTheScreen();
+      // Twice on purpose: quoted here, and again as the subtitle of the resume
+      // row, where it is what makes the timestamp recognisable.
+      expect(
+        getAllByText('Pivot finger trick actually works. G to C is nearly clean.'),
+      ).toHaveLength(2);
+    });
+
+    it('says when and where each note was taken', async () => {
+      mockNotes = [note({ id: 'note_1' })];
+
+      const { getByText } = await renderScreen(<TodayScreen />);
+
+      // Date, technique, and how far into the resource - all three are what
+      // make a three-week-old note recognisable.
+      expect(getByText(/Chord transitions · 3:42$/)).toBeOnTheScreen();
+    });
+
+    it('reopens a note at the second it was taken', async () => {
+      mockNotes = [note({ id: 'note_1' })];
+
+      const { getByTestId } = await renderScreen(<TodayScreen />);
+
+      await fireEvent.press(getByTestId('said-note_1'));
+
+      expect(mockPush).toHaveBeenCalledWith({
+        pathname: '/technique/[id]',
+        params: { id: 'tec_2', seek: '222' },
+      });
+    });
+
+    it('does not seek when the note was not anchored to a moment', async () => {
+      mockNotes = [note({ id: 'note_1', resourceId: null, timestampSec: null })];
+
+      const { getByTestId } = await renderScreen(<TodayScreen />);
+
+      await fireEvent.press(getByTestId('said-note_1'));
+
+      expect(mockPush).toHaveBeenCalledWith({
+        pathname: '/technique/[id]',
+        params: { id: 'tec_2' },
+      });
+    });
+
+    /** A heading over nothing is worse than no heading. */
+    it('is absent when nothing has been written', async () => {
+      const { queryByText } = await renderScreen(<TodayScreen />);
+
+      expect(queryByText('You said')).toBeNull();
+    });
   });
 
-  it('frames the session with the goal and real progress', async () => {
-    const { getByText } = await renderScreen(<TodayScreen />);
+  describe('the video section', () => {
+    beforeEach(() => {
+      mockPathState = {
+        path: {
+          ...guitarPath,
+          techniques: guitarPath.techniques.map((item) =>
+            item.id === 'tec_2' ? { ...item, resources: [resource({ id: 'res_1' })] } : item,
+          ),
+        },
+        loading: false,
+      };
+    });
 
-    expect(getByText('get good at guitar')).toBeOnTheScreen();
-    // The count sits beside the bar and must not be pushed away by a long skill.
-    expect(getByText('1 of 6')).toBeOnTheScreen();
+    it('shelves what has been curated but not finished', async () => {
+      const { getByText } = await renderScreen(<TodayScreen />);
+
+      expect(getByText('Saved for later')).toBeOnTheScreen();
+      expect(getByText('Fast chord changes: the pivot trick')).toBeOnTheScreen();
+      expect(getByText('Paul Davids · 13:04')).toBeOnTheScreen();
+    });
+
+    it('opens the technique the video belongs to', async () => {
+      const { getByTestId } = await renderScreen(<TodayScreen />);
+
+      await fireEvent.press(getByTestId('saved-res_1'));
+
+      expect(mockPush).toHaveBeenCalledWith('/technique/tec_2');
+    });
+
+    /** A finished technique is not "saved for later" - it is done. */
+    it('drops a resource once its technique is complete', async () => {
+      mockPathState = {
+        path: {
+          ...guitarPath,
+          techniques: guitarPath.techniques.map((item) =>
+            item.id === 'tec_2'
+              ? { ...item, status: 'completed' as const, resources: [resource({ id: 'res_1' })] }
+              : item,
+          ),
+        },
+        loading: false,
+      };
+
+      const { queryByTestId, queryByText } = await renderScreen(<TodayScreen />);
+
+      expect(queryByTestId('saved-res_1')).toBeNull();
+      expect(queryByText('Saved for later')).toBeNull();
+    });
   });
 
-  /** Why this rep, phrased against the learner's own goal. */
-  it('says what the rep is for', async () => {
-    const { getByText } = await renderScreen(<TodayScreen />);
+  describe('picking up where you stopped', () => {
+    it('resumes at the furthest point noted in a resource', async () => {
+      mockNotes = [
+        note({ id: 'early', timestampSec: 45, createdAt: '2026-09-04T09:00:00.000Z' }),
+        note({ id: 'late', timestampSec: 222, createdAt: '2026-09-04T10:00:00.000Z' }),
+      ];
 
-    expect(
-      getByText('Smooth changes are the difference between knowing chords and playing a song.'),
-    ).toBeOnTheScreen();
+      const { getByTestId, getByText } = await renderScreen(<TodayScreen />);
+
+      expect(getByText('3:42')).toBeOnTheScreen();
+
+      await fireEvent.press(getByTestId('resume-res_1'));
+
+      expect(mockPush).toHaveBeenCalledWith({
+        pathname: '/technique/[id]',
+        params: { id: 'tec_2', seek: '222' },
+      });
+    });
+
+    it('is absent when no note has a moment attached', async () => {
+      mockNotes = [note({ id: 'note_1', resourceId: null, timestampSec: null })];
+
+      const { queryByText } = await renderScreen(<TodayScreen />);
+
+      expect(queryByText('Pick up where you stopped')).toBeNull();
+    });
   });
 
   /**
-   * The session plan replaced the mascot in the hero. It answers the question
-   * somebody opening the app actually has: what am I about to spend 15 minutes
-   * doing?
+   * Swiping to another hobby refetches only that hobby. The panels that do not
+   * depend on it must not blink, or a swipe looks like a cold start.
    */
-  it('breaks the session into minutes per format', async () => {
-    const { getByText } = await renderScreen(<TodayScreen />);
-
-    expect(getByText('1m Reflect')).toBeOnTheScreen();
-  });
-
-  it('keeps a sentence-length skill name on screen with its count', async () => {
-    const long = 'I Want To Learn Concurrency In Golang';
-    mockList = {
-      paths: [summary('path_go', long)],
-      focusedId: 'path_go',
-      error: null,
-      loading: false,
-    };
-
-    const { getByText } = await renderScreen(<TodayScreen />);
-
-    expect(getByText(long)).toBeOnTheScreen();
-    expect(getByText('1 of 6')).toBeOnTheScreen();
-  });
-
-  /** Two hobbies are peers: both are pages, neither is buried in a menu. */
-  it('gives every path a page and offers one more for a new hobby', async () => {
-    const { getByText, getByTestId } = await renderScreen(<TodayScreen />);
-
-    expect(getByText('guitar')).toBeOnTheScreen();
-    expect(getByText('chess')).toBeOnTheScreen();
-    expect(getByTestId('add-path')).toBeOnTheScreen();
-  });
-
-  it('starts another hobby from the last page', async () => {
-    const { getByTestId } = await renderScreen(<TodayScreen />);
-
-    await fireEvent.press(getByTestId('add-path'));
-
-    expect(mockPush).toHaveBeenCalledWith('/onboarding/skill');
-  });
-
-  /** Starting a rep on a path you only swiped past would be an accident. */
-  it('shows no start button on an unfocused path', async () => {
-    const { getAllByText } = await renderScreen(<TodayScreen />);
-
-    expect(getAllByText('Start the rep')).toHaveLength(1);
-    expect(getAllByText('Swipe to this hobby to pick it up.')).toHaveLength(1);
-  });
-
-  it('names the next gate as what it unlocks', async () => {
-    const { getAllByText } = await renderScreen(<TodayScreen />);
-
-    // Two of six done means two more techniques clear gate 1.
-    expect(getAllByText('2 more techniques clears gate 1 of 2').length).toBeGreaterThan(0);
-  });
-
-  describe('the streak', () => {
-    it('shows a real zero rather than softening it', async () => {
-      const { getByText } = await renderScreen(<TodayScreen />);
-
-      expect(getByText('No streak yet. One session starts it.')).toBeOnTheScreen();
+  describe('while a hobby is loading', () => {
+    beforeEach(() => {
+      mockPathState = { path: null, loading: true };
+      mockEntries = [entryDaysAgo(0)];
     });
 
-    it('counts today once it has been practised', async () => {
-      mockEntries = [{ at: new Date().toISOString(), minutes: 20, xp: 50, pathId: 'path_guitar' }];
-
+    it('holds the panels that a swipe does not change', async () => {
       const { getByText } = await renderScreen(<TodayScreen />);
 
-      expect(getByText('1 day streak — today is in.')).toBeOnTheScreen();
+      // The week belongs to the learner, not to one path.
+      expect(getByText('Last 7 days')).toBeOnTheScreen();
+      expect(getByText('Sessions hit')).toBeOnTheScreen();
     });
 
-    /** A day not yet practised must not read as a broken streak at 9am. */
-    it('holds yesterday\'s streak before today is practised', async () => {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      mockEntries = [{ at: yesterday.toISOString(), minutes: 20, xp: 50, pathId: 'path_guitar' }];
+    it('stands in for the panels it does change', async () => {
+      const { getByText, queryByText, queryByTestId } = await renderScreen(<TodayScreen />);
 
-      const { getByText } = await renderScreen(<TodayScreen />);
-
-      expect(getByText('1 day streak. Practise today to keep it.')).toBeOnTheScreen();
+      // Headings stay, so the page does not reflow around the placeholders.
+      expect(getByText('My practice today')).toBeOnTheScreen();
+      expect(getByText('Next gate')).toBeOnTheScreen();
+      // Their contents are not invented while they are unknown.
+      expect(queryByTestId('insight-mastery')).toBeNull();
+      expect(queryByText('Barre chords')).toBeNull();
     });
   });
 
@@ -279,20 +571,26 @@ describe('TodayScreen', () => {
         },
         loading: false,
       };
-    });
-
-    it('says so rather than leaving the page empty', async () => {
       mockList = {
         paths: [summary('path_guitar', 'guitar', 6)],
         focusedId: 'path_guitar',
         error: null,
         loading: false,
       };
+    });
 
+    it('says so rather than leaving the page empty', async () => {
       const { getByText, queryByTestId } = await renderScreen(<TodayScreen />);
 
       expect(getByText('Path complete')).toBeOnTheScreen();
       expect(queryByTestId('start-rep')).toBeNull();
+    });
+
+    /** There is no next gate on a finished path, so the card goes. */
+    it('drops the gate card', async () => {
+      const { queryByTestId } = await renderScreen(<TodayScreen />);
+
+      expect(queryByTestId('next-gate')).toBeNull();
     });
   });
 

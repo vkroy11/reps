@@ -1,5 +1,11 @@
 import { resolveFormats, type ContentFormat, type Modality } from '@reps/core';
-import { Text, color, radius, space } from '@reps/ui';
+import { Text, color } from '@reps/ui';
+import BookOpen from 'lucide-react-native/icons/book-open';
+import FileText from 'lucide-react-native/icons/file-text';
+import Layers from 'lucide-react-native/icons/layers';
+import NotebookPen from 'lucide-react-native/icons/notebook-pen';
+import Play from 'lucide-react-native/icons/play';
+import RotateCcw from 'lucide-react-native/icons/rotate-ccw';
 import { StyleSheet, View } from 'react-native';
 
 /** A minute is the smallest chip worth drawing. */
@@ -13,6 +19,14 @@ const LABELS: Record<ContentFormat, string> = {
   article: 'Read',
   flashcards: 'Cards',
   ai_lesson: 'Lesson',
+};
+
+const GLYPH: Record<ContentFormat, typeof Play> = {
+  video: Play,
+  drill: RotateCcw,
+  article: FileText,
+  flashcards: Layers,
+  ai_lesson: BookOpen,
 };
 
 /** How the session's minutes divide between formats. */
@@ -68,18 +82,30 @@ export function SessionPlan({ modality, preferredFormats, totalMinutes }: Sessio
 
   return (
     <View style={styles.row} accessibilityLabel={`This session: ${describe(adjusted)}`}>
-      {adjusted.map((slice) => (
-        <View key={slice.format} style={[styles.chip, styles.chipActive]}>
-          <Text variant="caption" tone="textOnBrand">
-            {slice.minutes}m {LABELS[slice.format]}
-          </Text>
-        </View>
-      ))}
-      {/* Reflect is a chip in card colours because it is part of the session
+      {adjusted.map((slice) => {
+        const Glyph = GLYPH[slice.format];
+
+        return (
+          <View key={slice.format} style={[styles.stage, styles.stagePractice]}>
+            <Glyph size={15} color={color.textOnBrand} strokeWidth={2.4} />
+            <Text variant="caption" tone="textOnBrand" style={styles.label}>
+              {LABELS[slice.format]}
+            </Text>
+            <Text variant="overline" tone="textOnBrand" style={styles.minutes}>
+              {slice.minutes} min
+            </Text>
+          </View>
+        );
+      })}
+      {/* Reflect is a stage in card colours because it is part of the session
           but not part of the practice - it is what makes the rep count. */}
-      <View style={[styles.chip, styles.chipReflect]}>
-        <Text variant="caption" tone="textSecondary">
-          {REFLECT_MINUTES}m Reflect
+      <View style={[styles.stage, styles.stageReflect]}>
+        <NotebookPen size={15} color={color.textSecondary} strokeWidth={2.4} />
+        <Text variant="caption" tone="textSecondary" style={styles.label}>
+          Reflect
+        </Text>
+        <Text variant="overline" tone="textSecondary" style={styles.minutes}>
+          {REFLECT_MINUTES} min
         </Text>
       </View>
     </View>
@@ -93,8 +119,21 @@ function describe(slices: { format: ContentFormat; minutes: number }[]): string 
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
-  chip: { paddingVertical: 7, paddingHorizontal: space.md, borderRadius: radius.chip },
-  chipActive: { backgroundColor: color.brand },
-  chipReflect: { backgroundColor: color.surfaceSunken },
+  /*
+    Equal-width stages rather than chips sized to their text. The row is a
+    picture of the session, so a 12-minute watch and a 1-minute reflect being
+    the same width is deliberate: the stages are steps, not a bar chart.
+  */
+  row: { flexDirection: 'row', alignItems: 'stretch', gap: 6, alignSelf: 'stretch' },
+  stage: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 6,
+    borderRadius: 13,
+  },
+  stagePractice: { backgroundColor: color.brand },
+  stageReflect: { backgroundColor: color.surfaceCard },
+  label: { marginTop: 5 },
+  minutes: { marginTop: 1, letterSpacing: 0.3 },
 });

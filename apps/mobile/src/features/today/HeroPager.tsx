@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   View,
-  useWindowDimensions,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
@@ -19,6 +18,8 @@ export interface HeroPagerProps {
   initialIndex: number;
   onFocus: (pathId: string) => void;
   onAddPath: () => void;
+  /** Width of one page. The panel's own width, set by whatever contains it. */
+  pageWidth: number;
   renderPage: (path: LearningPathSummary) => React.ReactNode;
 }
 
@@ -39,13 +40,11 @@ export function HeroPager({
   initialIndex,
   onFocus,
   onAddPath,
+  pageWidth,
   renderPage,
 }: HeroPagerProps) {
-  const { width } = useWindowDimensions();
   const [index, setIndex] = useState(initialIndex);
   const scroller = useRef<ScrollView>(null);
-  // Page width is the viewport minus the screen's own gutters.
-  const pageWidth = Math.min(width, 640) - space.base * 2;
 
   const onSettle = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const next = Math.round(event.nativeEvent.contentOffset.x / pageWidth);
@@ -67,8 +66,6 @@ export function HeroPager({
         onMomentumScrollEnd={onSettle}
         contentOffset={{ x: initialIndex * pageWidth, y: 0 }}
         style={{ width: pageWidth }}
-        // The pager is inset by the screen gutters rather than bleeding to the
-        // edges: a page that touches the screen edge has nothing to swipe from.
         scrollEventThrottle={16}
       >
         {paths.map((path) => (
@@ -119,15 +116,7 @@ export function HeroPager({
 }
 
 /** The active dot widens rather than changing size, so the row never reflows. */
-function Dot({
-  active,
-  onPress,
-  label,
-}: {
-  active: boolean;
-  onPress: () => void;
-  label: string;
-}) {
+function Dot({ active, onPress, label }: { active: boolean; onPress: () => void; label: string }) {
   const reduceMotion = useReduceMotion();
   const width = useSharedValue(active ? 22 : 7);
 
@@ -177,6 +166,7 @@ const styles = StyleSheet.create({
     borderColor: color.borderDefault,
     borderStyle: 'dashed',
     minHeight: 210,
+    marginHorizontal: space.base,
   },
   addGlyph: {
     width: 52,
