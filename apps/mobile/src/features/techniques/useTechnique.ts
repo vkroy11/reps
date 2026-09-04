@@ -67,15 +67,24 @@ interface ContentState {
 /**
  * The generated drill, card deck or micro-lesson.
  *
- * Not fetched on mount: generating it costs a model call, and it is only worth
- * making when the learner asks to practise. Once generated the API stores it,
- * so a second visit is instant.
+ * On the technique page this is deliberately *not* fetched on mount:
+ * generating it costs a model call, and it is only worth making when the
+ * learner asks to practise. Once generated the API stores it, so a second
+ * visit is instant.
+ *
+ * `eager` is for the session screen, where the decision has already been made
+ * - somebody who tapped "start the rep" is going to need the instructions, and
+ * waiting for a model call after they tap "step by step" mid-rep would read as
+ * a broken panel.
  */
-export function useTechniqueContent(techniqueId: string | null): ContentState {
+export function useTechniqueContent(
+  techniqueId: string | null,
+  options: { eager?: boolean } = {},
+): ContentState {
   const { api, ready } = useApp();
   const [content, setContent] = useState<TechniqueContent | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
-  const [requested, setRequested] = useState(0);
+  const [requested, setRequested] = useState(options.eager ? 1 : 0);
 
   useEffect(() => {
     if (!ready || !api || !techniqueId || requested === 0) return;

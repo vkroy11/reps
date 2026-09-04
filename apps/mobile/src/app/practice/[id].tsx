@@ -9,8 +9,9 @@ import { BackIcon } from '../../components/icons';
 import { LevelUpCelebration } from '../../features/practice/LevelUpCelebration';
 import { PracticeTimer } from '../../features/practice/PracticeTimer';
 import { ReflectStep } from '../../features/practice/ReflectStep';
+import { SessionInstructions } from '../../features/practice/SessionInstructions';
 import { usePathCache } from '../../features/paths/path-cache';
-import { useTechnique } from '../../features/techniques/useTechnique';
+import { useTechnique, useTechniqueContent } from '../../features/techniques/useTechnique';
 import { useApp } from '../../providers/app-provider';
 
 type Stage = 'timing' | 'reflecting' | 'celebrating';
@@ -31,6 +32,12 @@ export default function PracticeScreen() {
   const { api } = useApp();
   const { applyPath } = usePathCache();
   const { technique, loading } = useTechnique(id ?? null);
+  /*
+    The written instructions, fetched alongside the technique rather than on
+    demand: generation takes a model call, and asking for it only when the
+    learner taps "step by step" would make the panel feel broken mid-rep.
+  */
+  const { content, loading: contentLoading } = useTechniqueContent(id ?? null, { eager: true });
 
   const [stage, setStage] = useState<Stage>('timing');
   const [minutes, setMinutes] = useState(0);
@@ -114,6 +121,8 @@ export default function PracticeScreen() {
                 {technique.practicePrompt}
               </Text>
             </Card>
+
+            <SessionInstructions content={content} loading={contentLoading} />
 
             <PracticeTimer
               targetMinutes={technique.estimatedMinutes}
