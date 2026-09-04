@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { Technique } from './domain';
 import {
-  GATE_EVERY,
-  XP_FIRST_REFLECTION,
-  XP_MAX_CREDITED_MINUTES,
-  XP_PER_MINUTE,
   capstoneOf,
   clearedStages,
   creditedMinutes,
+  GATE_EVERY,
+  gateSize,
   masteryOf,
   stageCount,
   stageOf,
+  XP_FIRST_REFLECTION,
+  XP_MAX_CREDITED_MINUTES,
+  XP_PER_MINUTE,
   xpForSession,
 } from './progress';
 
@@ -120,13 +121,28 @@ describe('stages and gates', () => {
   });
 
   /**
-   * A five-technique path has a short second stage. Finishing all five must not
-   * report a third stage cleared, or the celebration would promise a badge the
-   * board has no gate for.
+   * A five-technique path has a short second stage of two. Finishing all five
+   * clears it - floor division alone never would, and since the server awards
+   * the badge for stage `clearedStages(...)`, the last badge on any path whose
+   * length is not a multiple of three would otherwise never be granted.
    */
+  it('clears a short final stage once the path is finished', () => {
+    expect(clearedStages(4, 5)).toBe(1);
+    expect(clearedStages(5, 5)).toBe(2);
+  });
+
   it('never reports more stages cleared than the path has', () => {
-    expect(clearedStages(5, 5)).toBe(1);
     expect(clearedStages(99, 5)).toBe(2);
+    expect(clearedStages(99, 0)).toBe(0);
+  });
+
+  /** A gate cannot promise more techniques than the stage actually holds. */
+  it('sizes the last gate to what is left of the path', () => {
+    expect(gateSize(6, 1)).toBe(3);
+    expect(gateSize(6, 2)).toBe(3);
+    expect(gateSize(5, 2)).toBe(2);
+    expect(gateSize(5, 3)).toBe(0);
+    expect(gateSize(0, 1)).toBe(0);
   });
 });
 

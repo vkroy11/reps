@@ -95,9 +95,34 @@ export function stageCount(techniqueCount: number): number {
   return Math.ceil(techniqueCount / GATE_EVERY);
 }
 
-/** How many stages this many completions has closed. */
+/**
+ * How many stages this many completions has closed.
+ *
+ * The special case is load-bearing. A path whose length is not a multiple of
+ * GATE_EVERY ends on a short stage - five techniques is one full gate plus a
+ * stage of two - and floor division can never clear it, however much the
+ * learner finishes. Since the server awards the badge for stage
+ * `clearedStages(...)`, without this the last badge on most paths would simply
+ * never be granted: the learner completes the final technique and nothing
+ * happens.
+ */
 export function clearedStages(completedCount: number, techniqueCount: number): number {
+  if (techniqueCount > 0 && completedCount >= techniqueCount) return stageCount(techniqueCount);
+
   return Math.min(Math.floor(completedCount / GATE_EVERY), stageCount(techniqueCount));
+}
+
+/**
+ * How many techniques a stage holds. `stage` is 1-indexed, as in capstoneOf.
+ *
+ * Every stage is GATE_EVERY long except the last, which is whatever is left.
+ * A gate that says "3 more techniques" when only 2 remain is a promise the
+ * path cannot keep.
+ */
+export function gateSize(techniqueCount: number, stage: number): number {
+  const start = (stage - 1) * GATE_EVERY;
+
+  return Math.max(0, Math.min(GATE_EVERY, techniqueCount - start));
 }
 
 /**
@@ -123,7 +148,9 @@ export function capstoneOf(techniques: Technique[], stage: number): Technique | 
  * board only draws the ring above 0, so an untouched node shows no ring rather
  * than an empty one.
  */
-export function masteryOf(technique: Pick<Technique, 'practiceMinutes' | 'estimatedMinutes'>): number {
+export function masteryOf(
+  technique: Pick<Technique, 'practiceMinutes' | 'estimatedMinutes'>,
+): number {
   if (technique.estimatedMinutes <= 0) return 0;
 
   return Math.min(technique.practiceMinutes / technique.estimatedMinutes, 1);
