@@ -37,6 +37,34 @@ function describeContext(context: PathContext): string {
   ].join('\n');
 }
 
+/**
+ * The archetype gates which modalities the path may use at all, so a
+ * misclassification silently removes a whole format: `craft` and `motor`
+ * forbid flashcards outright, which is right for drawing and wrong for a
+ * programming language's syntax. One-line definitions were not enough - "craft
+ * (producing work)" swallowed "learn Go syntax", because writing a program is
+ * producing work. The examples and the tie-breaker are what make the
+ * distinction reproducible.
+ */
+const ARCHETYPE_RULES = [
+  'Classify the skill archetype. Pick by what the learner\'s *first obstacle* is:',
+  '- motor: the body has to learn it through repetition.',
+  '  guitar chords, a tennis serve, knife skills, skateboarding, swimming.',
+  '- strategic: knowing the moves is easy, choosing between them is hard.',
+  '  chess, poker, negotiation, debugging, tasting and identifying.',
+  '- recall: there are many discrete facts, names, forms or rules to know cold,',
+  '  and not knowing them is what stops you.',
+  '  a language\'s vocabulary, a programming language\'s syntax and standard library,',
+  '  anatomy, music theory, chess openings, wine varieties, keyboard shortcuts.',
+  '- craft: technique is judged by the work it produces, and improving means',
+  '  making things and critiquing them.',
+  '  drawing, photography, writing, woodwork, cooking a dish well.',
+  '',
+  'Tie-breaker: if the learner cannot get started until they have memorised a body',
+  'of discrete items, choose recall - even when the end product is made work.',
+  'Learning a programming language is recall, not craft.',
+].join('\n');
+
 /** Repeated in several prompts because it is the rule most worth enforcing. */
 const MODALITY_RULES = [
   'Choose modality from what the skill demands, not from the stated preference:',
@@ -61,9 +89,7 @@ export function onboardingSuggestionsPrompt(skill: string): string {
   return [
     `Skill: ${skill}`,
     '',
-    'Classify the skill archetype:',
-    'motor (physical repetition), strategic (decisions under pressure),',
-    'recall (memorising many items), craft (producing work).',
+    ARCHETYPE_RULES,
     '',
     'Then write onboarding options specific to this skill.',
     '',
@@ -88,7 +114,7 @@ export function generatePathPrompt(context: PathContext): string {
     `Produce ${MIN_TECHNIQUES}-${MAX_TECHNIQUES} techniques, ordered so each one depends only`,
     'on techniques before it. The last technique should be the goal itself.',
     '',
-    'Also classify the skill archetype: motor, strategic, recall, or craft.',
+    ARCHETYPE_RULES,
     '',
     MODALITY_RULES,
     '',
