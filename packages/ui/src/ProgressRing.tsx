@@ -27,9 +27,13 @@ export interface ProgressRingProps {
 /**
  * A ring that fills clockwise from twelve o'clock.
  *
- * Animated through `strokeDashoffset` on a `pathLength` of 100, so the value is
- * already a percentage and the arc length never has to be recomputed from the
- * radius. Nothing here touches layout, so it runs on the UI thread.
+ * Driven by `strokeDashoffset`, which is a paint property: nothing here runs
+ * layout, so the fill animates on the UI thread.
+ *
+ * The dash values are in user units rather than the percentages `pathLength`
+ * would allow, because `pathLength` is not in this version of
+ * react-native-svg's `CircleProps` - it typechecks as an unknown prop and would
+ * be silently dropped at runtime, leaving a ring that never moves.
  */
 export function ProgressRing({
   value,
@@ -42,19 +46,21 @@ export function ProgressRing({
   style,
 }: ProgressRingProps) {
   const reduceMotion = useReduceMotion();
-  const offset = useSharedValue(100 - clamp(value) * 100);
 
-  useEffect(() => {
-    const target = 100 - clamp(value) * 100;
-    offset.value = reduceMotion ? target : withTiming(target, motion.ring);
-  }, [value, offset, reduceMotion]);
-
-  const animatedProps = useAnimatedProps(() => ({ strokeDashoffset: offset.value }));
-
-  // The stroke is centred on the radius, so it must be inset by half its width
-  // or the ring is clipped by the viewBox.
+  // The stroke straddles the radius, so it must be inset by half its width or
+  // the ring is clipped by the viewBox.
   const radius = (size - strokeWidth) / 2;
   const centre = size / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  const offset = useSharedValue(circumference * (1 - clamp(value)));
+
+  useEffect(() => {
+    const target = circumference * (1 - clamp(value));
+    offset.value = reduceMotion ? target : withTiming(target, motion.ring);
+  }, [value, circumference, offset, reduceMotion]);
+
+  const animatedProps = useAnimatedProps(() => ({ strokeDashoffset: offset.value }));
 
   return (
     <View
@@ -62,6 +68,11 @@ export function ProgressRing({
       accessibilityValue={{ min: 0, max: 100, now: Math.round(clamp(value) * 100) }}
       style={[styles.wrap, { width: size, height: size }, style]}
     >
+      {/*
+        The whole canvas is turned a quarter rather than the arc: a `transform`
+        string is not among react-native-svg's animated Circle props, and the
+        track is a full circle, so rotating it changes nothing.
+      */}
       <Svg width={size} height={size} style={styles.svg}>
         <Circle
           cx={centre}
@@ -79,13 +90,8 @@ export function ProgressRing({
           stroke={tint}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
-          // pathLength normalises the circumference to 100 so the dash values
-          // below are percentages regardless of size.
-          pathLength={100}
-          strokeDasharray="100"
+          strokeDasharray={circumference}
           animatedProps={animatedProps}
-          // Start at the top rather than at three o'clock.
-          transform={`rotate(-90 ${centre} ${centre})`}
         />
       </Svg>
       {label === undefined ? null : (
@@ -103,6 +109,7 @@ function clamp(value: number): number {
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
-  svg: { position: 'absolute', top: 0, left: 0 },
+  // Start the arc at twelve o'clock rather than three.
+  svg: { position: 'absolute', top: 0, left: 0, transform: [{ rotate: '-90deg' }] },
   label: { fontSize: 12, fontVariant: ['tabular-nums'] },
 });

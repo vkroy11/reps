@@ -242,12 +242,20 @@ export function PipMascot({
             ) : null}
             <AnimatedCircle cx={EYE_LEFT_X} cy={EYE_Y} fill="#FFFFFF" animatedProps={leftEye} />
             <AnimatedCircle cx={EYE_RIGHT_X} cy={EYE_Y} fill="#FFFFFF" animatedProps={rightEye} />
+            {/*
+              `cx` is set statically as well as animated. Without the static
+              value the pupils have no cx until Reanimated applies the first
+              animated frame, and on web that renders them at x=0 - a stray
+              dark dot outside Pip's head on the very first paint.
+            */}
             <AnimatedCircle
+              cx={EYE_LEFT_X}
               cy={EYE_Y + 1}
               fill={color.textPrimary}
               animatedProps={{ ...leftPupil, ...leftPupilSize }}
             />
             <AnimatedCircle
+              cx={EYE_RIGHT_X}
               cy={EYE_Y + 1}
               fill={color.textPrimary}
               animatedProps={{ ...rightPupil, ...rightPupilSize }}
