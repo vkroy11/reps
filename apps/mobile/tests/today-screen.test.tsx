@@ -7,7 +7,7 @@ import type {
   Technique,
 } from '@reps/core';
 import { toLocalDay } from '@reps/core';
-import { fireEvent } from '@testing-library/react-native';
+import { fireEvent, within } from '@testing-library/react-native';
 import TodayScreen from '../src/app/(tabs)/index';
 import { renderScreen } from './support/render-screen';
 
@@ -47,6 +47,7 @@ let mockEntries: {
 }[] = [];
 let mockNotes: NoteWithContext[] = [];
 let mockHistoryLoading = false;
+let mockPathsById: Record<string, LearningPath> = {};
 
 jest.mock('../src/features/progress/useStreak', () => {
   const core = jest.requireActual('@reps/core');
@@ -69,6 +70,7 @@ jest.mock('../src/features/progress/useStreak', () => {
 jest.mock('../src/features/paths/usePaths', () => ({
   usePathList: () => ({ ...mockList, reload: mockReload }),
   usePath: () => ({ ...mockPathState, error: null, reload: mockReload }),
+  usePathsFor: () => mockPathsById,
 }));
 
 jest.mock('../src/features/notes/useNotes', () => ({
@@ -157,6 +159,20 @@ const guitarPath: LearningPath = {
   ],
 } as LearningPath;
 
+const chessPath: LearningPath = {
+  ...summary('path_chess', 'chess', 0),
+  techniques: [
+    technique({
+      id: 'tec_c1',
+      pathId: 'path_chess',
+      order: 0,
+      title: 'Spot the fork',
+      status: 'active',
+    }),
+    technique({ id: 'tec_c2', pathId: 'path_chess', order: 1, title: 'Pin and skewer' }),
+  ],
+} as LearningPath;
+
 /** A session on the given day, at midday so no test depends on the zone. */
 function entryDaysAgo(back: number, confidence: Confidence = 'getting_there') {
   const at = new Date();
@@ -184,6 +200,7 @@ describe('TodayScreen', () => {
       loading: false,
     };
     mockPathState = { path: guitarPath, loading: false };
+    mockPathsById = { path_guitar: guitarPath, path_chess: chessPath };
     mockEntries = [];
     mockNotes = [];
     mockHistoryLoading = false;
@@ -191,24 +208,27 @@ describe('TodayScreen', () => {
 
   describe('the hero', () => {
     it('leads with the next rep and one button to start it', async () => {
-      const { getByText, getByTestId } = await renderScreen(<TodayScreen />);
+      const { getByTestId } = await renderScreen(<TodayScreen />);
+      const page = within(getByTestId('hero-page-path_guitar'));
 
-      expect(getByText('Chord transitions')).toBeOnTheScreen();
-      expect(getByTestId('start-rep')).toBeOnTheScreen();
+      expect(page.getByText('Chord transitions')).toBeOnTheScreen();
+      expect(page.getByTestId('start-rep')).toBeOnTheScreen();
     });
 
     it('starts the rep in its own session rather than the technique page', async () => {
       const { getByTestId } = await renderScreen(<TodayScreen />);
+      const page = within(getByTestId('hero-page-path_guitar'));
 
-      await fireEvent.press(getByTestId('start-rep'));
+      await fireEvent.press(page.getByTestId('start-rep'));
 
       expect(mockPush).toHaveBeenCalledWith('/practice/tec_2');
     });
 
     it('offers the detail page without making it the primary action', async () => {
-      const { getByText } = await renderScreen(<TodayScreen />);
+      const { getByTestId } = await renderScreen(<TodayScreen />);
+      const page = within(getByTestId('hero-page-path_guitar'));
 
-      await fireEvent.press(getByText('See the details first'));
+      await fireEvent.press(page.getByText('See the details first'));
 
       expect(mockPush).toHaveBeenCalledWith('/technique/tec_2');
     });
@@ -227,6 +247,7 @@ describe('TodayScreen', () => {
         error: null,
         loading: false,
       };
+      mockPathsById = { path_go: { ...guitarPath, id: 'path_go' } };
 
       const { getByText } = await renderScreen(<TodayScreen />);
 
@@ -235,10 +256,13 @@ describe('TodayScreen', () => {
 
     /** Why this rep, phrased against the learner's own goal. */
     it('says what the rep is for', async () => {
-      const { getByText } = await renderScreen(<TodayScreen />);
+      const { getByTestId } = await renderScreen(<TodayScreen />);
+      const page = within(getByTestId('hero-page-path_guitar'));
 
       expect(
-        getByText('Smooth changes are the difference between knowing chords and playing a song.'),
+        page.getByText(
+          'Smooth changes are the difference between knowing chords and playing a song.',
+        ),
       ).toBeOnTheScreen();
     });
 
@@ -248,11 +272,12 @@ describe('TodayScreen', () => {
      * minutes doing?
      */
     it('breaks the session into stages with minutes on each', async () => {
-      const { getByText } = await renderScreen(<TodayScreen />);
+      const { getByTestId } = await renderScreen(<TodayScreen />);
+      const page = within(getByTestId('hero-page-path_guitar'));
 
-      expect(getByText('Watch')).toBeOnTheScreen();
-      expect(getByText('Reflect')).toBeOnTheScreen();
-      expect(getByText('1 min')).toBeOnTheScreen();
+      expect(page.getByText('Watch')).toBeOnTheScreen();
+      expect(page.getByText('Reflect')).toBeOnTheScreen();
+      expect(page.getByText('1 min')).toBeOnTheScreen();
     });
 
     /** Two hobbies are peers: both are pages, neither is buried in a menu. */
@@ -260,8 +285,39 @@ describe('TodayScreen', () => {
       const { getByText, getByTestId } = await renderScreen(<TodayScreen />);
 
       expect(getByText('GUITAR · LEVEL 2 OF 6')).toBeOnTheScreen();
-      expect(getByText('CHESS')).toBeOnTheScreen();
+      expect(getByText('CHESS · LEVEL 1 OF 6')).toBeOnTheScreen();
       expect(getByTestId('add-path')).toBeOnTheScreen();
+    });
+
+    /**
+     * A finished hobby has nothing to do on it, so it sorts behind the page for
+     * starting something new: what you are doing, what you could start, then
+     * what you have already done.
+     */
+    it('puts a finished hobby behind the page for starting a new one', async () => {
+      const finished = summary('path_chess', 'chess', 6);
+      mockList = {
+        paths: [mockList.paths[0]!, finished],
+        focusedId: 'path_guitar',
+        error: null,
+        loading: false,
+      };
+      mockPathsById = {
+        path_guitar: guitarPath,
+        path_chess: { ...chessPath, ...finished } as LearningPath,
+      };
+
+      const { getAllByTestId, getByTestId } = await renderScreen(<TodayScreen />);
+      const pages = getAllByTestId(/^hero-page-|^add-path$/);
+
+      expect(pages.map((page) => page.props.testID)).toEqual([
+        'hero-page-path_guitar',
+        'add-path',
+        'hero-page-path_chess',
+      ]);
+      expect(
+        within(getByTestId('hero-page-path_chess')).getByText('Path complete'),
+      ).toBeOnTheScreen();
     });
 
     it('starts another hobby from the last page', async () => {
@@ -272,63 +328,91 @@ describe('TodayScreen', () => {
       expect(mockPush).toHaveBeenCalledWith('/onboarding/skill');
     });
 
-    /** Starting a rep on a path you only swiped past would be an accident. */
-    it('shows no start button on an unfocused path', async () => {
+    /**
+     * Every page is drawn from its own path, which is what removed the flash:
+     * a page used to appear with only its summary line and then fill in once
+     * focus settled, so swiping showed the wrong hobby's copy for a moment.
+     */
+    it('gives every hobby its own next rep, not just the focused one', async () => {
       const { getAllByTestId, getByText } = await renderScreen(<TodayScreen />);
 
+      expect(getByText('Chord transitions')).toBeOnTheScreen();
+      expect(getByText('Spot the fork')).toBeOnTheScreen();
+      expect(getByText('CHESS · LEVEL 1 OF 6')).toBeOnTheScreen();
+      // One CTA per real hobby, so a swipe never lands on a page with none.
+      expect(getAllByTestId('start-rep')).toHaveLength(2);
+    });
+
+    it('starts the rep belonging to the page it was tapped on', async () => {
+      const { getAllByTestId } = await renderScreen(<TodayScreen />);
+
+      await fireEvent.press(getAllByTestId('start-rep')[1]!);
+
+      expect(mockPush).toHaveBeenCalledWith('/practice/tec_c1');
+    });
+
+    /** A hobby not yet fetched gets a placeholder rather than a wrong page. */
+    it('stands in for a hobby that has not arrived yet', async () => {
+      mockPathsById = { path_guitar: guitarPath };
+
+      const { getAllByTestId, queryByText } = await renderScreen(<TodayScreen />);
+
       expect(getAllByTestId('start-rep')).toHaveLength(1);
-      // The unfocused page shows where that hobby stands instead.
-      expect(getByText('0 of 6 levels · 0%')).toBeOnTheScreen();
+      expect(queryByText('CHESS · LEVEL 1 OF 6')).toBeNull();
     });
 
     describe('the nudge above the title', () => {
       it('asks for the first session when there has never been one', async () => {
-        const { getByText } = await renderScreen(<TodayScreen />);
+        const { getByTestId } = await renderScreen(<TodayScreen />);
+        const page = within(getByTestId('hero-page-path_guitar'));
 
-        expect(getByText('One session starts the streak')).toBeOnTheScreen();
+        expect(page.getByText('One session starts the streak')).toBeOnTheScreen();
       });
 
       it('says today is in once it has been practised', async () => {
         mockEntries = [entryDaysAgo(0)];
 
-        const { getByText } = await renderScreen(<TodayScreen />);
+        const { getByTestId } = await renderScreen(<TodayScreen />);
+        const page = within(getByTestId('hero-page-path_guitar'));
 
-        expect(getByText('1-day streak · today is in')).toBeOnTheScreen();
+        expect(page.getByText('1-day streak · today is in')).toBeOnTheScreen();
       });
 
       /** A day not yet practised must not read as a broken streak at 9am. */
       it("holds yesterday's streak and says what is at stake", async () => {
         mockEntries = [entryDaysAgo(1)];
 
-        const { getByText } = await renderScreen(<TodayScreen />);
+        const { getByTestId } = await renderScreen(<TodayScreen />);
+        const page = within(getByTestId('hero-page-path_guitar'));
 
-        expect(getByText('1-day streak · today keeps it alive')).toBeOnTheScreen();
+        expect(page.getByText('1-day streak · today keeps it alive')).toBeOnTheScreen();
       });
 
       it('offers a restart rather than a scolding after a lapse', async () => {
         mockEntries = [entryDaysAgo(6)];
 
-        const { getByText } = await renderScreen(<TodayScreen />);
+        const { getByTestId } = await renderScreen(<TodayScreen />);
+        const page = within(getByTestId('hero-page-path_guitar'));
 
-        expect(getByText('A short session restarts the streak')).toBeOnTheScreen();
+        expect(page.getByText('A short session restarts the streak')).toBeOnTheScreen();
       });
 
       /** Half-finished work is a better reason to open the app than a streak. */
       it('points at the half-done level ahead of the calendar', async () => {
-        mockPathState = {
-          path: {
-            ...guitarPath,
-            techniques: guitarPath.techniques.map((item) =>
-              item.id === 'tec_2' ? { ...item, practiceMinutes: 12 } : item,
-            ),
-          },
-          loading: false,
+        const halfDone: LearningPath = {
+          ...guitarPath,
+          techniques: guitarPath.techniques.map((item) =>
+            item.id === 'tec_2' ? { ...item, practiceMinutes: 12 } : item,
+          ),
         };
+        mockPathState = { path: halfDone, loading: false };
+        mockPathsById = { path_guitar: halfDone };
         mockEntries = [entryDaysAgo(0)];
 
-        const { getByText } = await renderScreen(<TodayScreen />);
+        const { getByTestId } = await renderScreen(<TodayScreen />);
+        const page = within(getByTestId('hero-page-path_guitar'));
 
-        expect(getByText('One solid rep and the next level opens')).toBeOnTheScreen();
+        expect(page.getByText('One solid rep and the next level opens')).toBeOnTheScreen();
       });
     });
   });

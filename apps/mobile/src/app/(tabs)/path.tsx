@@ -6,10 +6,12 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BoardSkeleton } from '../../features/path/BoardSkeleton';
 import { PathBoard } from '../../features/path/PathBoard';
+import { SkillSwitcher } from '../../features/paths/SkillSwitcher';
 import { StartSheet } from '../../features/paths/StartSheet';
 import { TechniqueBrief } from '../../features/paths/TechniqueBrief';
 import { usePathCache } from '../../features/paths/path-cache';
 import { usePath, usePathList } from '../../features/paths/usePaths';
+import { useApp } from '../../providers/app-provider';
 
 /**
  * The path as a board-game map.
@@ -34,6 +36,7 @@ export default function PathScreen() {
   const { focusedId, paths, loading: listLoading } = usePathList();
   const { path, loading } = usePath(focusedId);
   const { seenDone, markSeen } = usePathCache();
+  const { focusPath } = useApp();
   const [openId, setOpenId] = useState<string | null>(null);
 
   const summary = paths.find((item) => item.id === focusedId) ?? null;
@@ -58,10 +61,18 @@ export default function PathScreen() {
   const header = (
     <>
       <View style={styles.header}>
-        {/* flex + minWidth:0 lets a long skill ellipsise instead of shoving the count off. */}
-        <Text variant="title" style={styles.title} numberOfLines={2}>
-          {summary?.skill ?? 'Your path'}
-        </Text>
+        {/* The switcher keeps flex + minWidth:0 so a long skill ellipsises
+            instead of shoving the count off the row. */}
+        <SkillSwitcher
+          paths={paths}
+          focusedId={focusedId}
+          onSelect={(pathId) => {
+            // Selecting here closes any open node: it belonged to the old board.
+            setOpenId(null);
+            focusPath(pathId);
+          }}
+          onAddPath={() => router.push('/onboarding/skill')}
+        />
         {summary ? (
           <Text variant="caption" tone="textSecondary" style={styles.count}>
             {summary.completedCount} of {summary.techniqueCount}
@@ -77,8 +88,8 @@ export default function PathScreen() {
           {/* XP and gates are the honest summary of the game layer: both are
               counted from stored sessions and badges, never estimated. */}
           <Text variant="caption" tone="textSecondary">
-            {summary.xp} XP · {summary.badges.length} of{' '}
-            {stageCount(summary.techniqueCount)} gates cleared
+            {summary.xp} XP · {summary.badges.length} of {stageCount(summary.techniqueCount)} gates
+            cleared
           </Text>
         </View>
       ) : null}

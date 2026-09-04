@@ -1,3 +1,4 @@
+import { isPathComplete } from '@reps/client';
 import { GATE_EVERY, clearedStages, stageCount, type LearningPathSummary } from '@reps/core';
 import { Text, color, motion, radius, space, useReduceMotion } from '@reps/ui';
 import Plus from 'lucide-react-native/icons/plus';
@@ -23,13 +24,19 @@ export interface HeroPagerProps {
   renderPage: (path: LearningPathSummary) => React.ReactNode;
 }
 
+type Page = { key: string; path: LearningPathSummary } | { key: 'add'; path: null };
+
 /**
- * One page per path, plus a final page for starting another hobby.
+ * One page per path, with a page for starting another hobby in the middle.
  *
  * A pager rather than a dropdown switcher, which is what this screen used
  * before. Two hobbies are a peer relationship: a dropdown makes one of them
  * the real answer and the other a setting you have to go and find. Swiping
  * says they are the same kind of thing.
+ *
+ * "Start another hobby" sits after the live paths and *before* the finished
+ * ones, because that is the order of usefulness: what you are doing, what you
+ * could start, then what you have already done.
  *
  * Paging is native `pagingEnabled` on a horizontal ScrollView, so the swipe
  * never touches JavaScript. The page index is read from the scroll offset on
@@ -46,14 +53,20 @@ export function HeroPager({
   const [index, setIndex] = useState(initialIndex);
   const scroller = useRef<ScrollView>(null);
 
+  const pages: Page[] = [
+    ...paths.filter((path) => !isPathComplete(path)).map((path) => ({ key: path.id, path })),
+    { key: 'add' as const, path: null },
+    ...paths.filter((path) => isPathComplete(path)).map((path) => ({ key: path.id, path })),
+  ];
+
   const onSettle = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const next = Math.round(event.nativeEvent.contentOffset.x / pageWidth);
     if (next === index) return;
 
     setIndex(next);
-    const path = paths[next];
-    // The last page is "start something new" and focuses nothing.
-    if (path) onFocus(path.id);
+    // The "start something new" page focuses nothing.
+    const page = pages[next];
+    if (page?.path) onFocus(page.path.id);
   };
 
   return (
@@ -68,45 +81,45 @@ export function HeroPager({
         style={{ width: pageWidth }}
         scrollEventThrottle={16}
       >
-        {paths.map((path) => (
-          <View key={path.id} style={{ width: pageWidth }}>
-            {renderPage(path)}
+        {pages.map((page) => (
+          <View key={page.key} style={{ width: pageWidth }}>
+            {page.path ? (
+              renderPage(page.path)
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Start another hobby"
+                onPress={onAddPath}
+                style={styles.addPage}
+                testID="add-path"
+              >
+                <View style={styles.addGlyph}>
+                  <Plus size={26} color={color.brand} strokeWidth={2.6} />
+                </View>
+                <Text variant="heading" center>
+                  Start another hobby
+                </Text>
+                <Text variant="caption" tone="textSecondary" center style={styles.addCopy}>
+                  Reps keeps them separate. Nothing you have built here changes.
+                </Text>
+              </Pressable>
+            )}
           </View>
         ))}
-
-        <View style={{ width: pageWidth }}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Start another hobby"
-            onPress={onAddPath}
-            style={styles.addPage}
-            testID="add-path"
-          >
-            <View style={styles.addGlyph}>
-              <Plus size={26} color={color.brand} strokeWidth={2.6} />
-            </View>
-            <Text variant="heading" center>
-              Start another hobby
-            </Text>
-            <Text variant="caption" tone="textSecondary" center style={styles.addCopy}>
-              Reps keeps them separate. Nothing you have built here changes.
-            </Text>
-          </Pressable>
-        </View>
       </ScrollView>
 
       {paths.length > 0 ? (
         <View style={styles.dots}>
-          {[...paths, null].map((path, dotIndex) => (
+          {pages.map((page, dotIndex) => (
             <Dot
-              key={path?.id ?? 'new'}
+              key={page.key}
               active={dotIndex === index}
               onPress={() => {
                 setIndex(dotIndex);
                 scroller.current?.scrollTo({ x: dotIndex * pageWidth, animated: true });
-                if (path) onFocus(path.id);
+                if (page.path) onFocus(page.path.id);
               }}
-              label={path ? path.skill : 'Start another hobby'}
+              label={page.path ? page.path.skill : 'Start another hobby'}
             />
           ))}
         </View>

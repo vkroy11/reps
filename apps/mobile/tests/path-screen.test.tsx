@@ -4,20 +4,22 @@ import PathScreen from '../src/app/(tabs)/path';
 import { renderScreen } from './support/render-screen';
 
 const mockPush = jest.fn();
+const mockFocusPath = jest.fn();
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }),
 }));
 
 jest.mock('../src/providers/app-provider', () => ({
-  useApp: () => ({ api: null, ready: true, focusPath: jest.fn() }),
+  useApp: () => ({ api: null, ready: true, focusPath: mockFocusPath }),
 }));
 
 let mockPathState: { path: LearningPath | null; loading: boolean };
+let mockPaths: LearningPathSummary[];
 
 jest.mock('../src/features/paths/usePaths', () => ({
   usePathList: () => ({
-    paths: [mockSummary],
+    paths: mockPaths,
     focusedId: 'path_guitar',
     error: null,
     loading: false,
@@ -75,10 +77,86 @@ const path = {
   ],
 } as LearningPath;
 
+/** A second hobby, so the switcher has something to switch to. */
+const chessSummary: LearningPathSummary = {
+  ...mockSummary,
+  id: 'path_chess',
+  skill: 'chess',
+  goal: 'stop losing to forks',
+  techniqueCount: 5,
+  completedCount: 5,
+  xp: 220,
+};
+
 describe('PathScreen', () => {
   beforeEach(() => {
     mockPush.mockClear();
+    mockFocusPath.mockClear();
     mockPathState = { path, loading: false };
+    mockPaths = [mockSummary];
+  });
+
+  /**
+   * The board used to draw whichever hobby Today was focused on, with no way
+   * to change it from here - switching meant leaving, swiping, and coming back.
+   */
+  describe('switching hobby', () => {
+    it('offers no control when there is only one hobby', async () => {
+      const { queryByTestId, getByText } = await renderScreen(<PathScreen />);
+
+      expect(queryByTestId('switch-skill')).toBeNull();
+      expect(getByText('guitar')).toBeOnTheScreen();
+    });
+
+    it('turns the skill name into the switcher once there are two', async () => {
+      mockPaths = [mockSummary, chessSummary];
+
+      const { getByTestId } = await renderScreen(<PathScreen />);
+
+      expect(getByTestId('switch-skill')).toBeOnTheScreen();
+    });
+
+    it('switches the focused hobby, which every screen reads', async () => {
+      mockPaths = [mockSummary, chessSummary];
+
+      const { getByTestId } = await renderScreen(<PathScreen />);
+      await fireEvent.press(getByTestId('switch-skill'));
+      await fireEvent.press(getByTestId('switch-to-path_chess'));
+
+      expect(mockFocusPath).toHaveBeenCalledWith('path_chess');
+    });
+
+    it('says where each hobby stands, so the choice is informed', async () => {
+      mockPaths = [mockSummary, chessSummary];
+
+      const { getByTestId, getByText } = await renderScreen(<PathScreen />);
+      await fireEvent.press(getByTestId('switch-skill'));
+
+      expect(getByText('1 of 4 levels · 0 XP')).toBeOnTheScreen();
+      // A finished hobby says so rather than reading "5 of 5".
+      expect(getByText('Complete')).toBeOnTheScreen();
+    });
+
+    /** Re-picking the hobby already shown should not refocus or reload it. */
+    it('does nothing when the current hobby is picked', async () => {
+      mockPaths = [mockSummary, chessSummary];
+
+      const { getByTestId } = await renderScreen(<PathScreen />);
+      await fireEvent.press(getByTestId('switch-skill'));
+      await fireEvent.press(getByTestId('switch-to-path_guitar'));
+
+      expect(mockFocusPath).not.toHaveBeenCalled();
+    });
+
+    it('offers a new hobby from the same sheet', async () => {
+      mockPaths = [mockSummary, chessSummary];
+
+      const { getByTestId } = await renderScreen(<PathScreen />);
+      await fireEvent.press(getByTestId('switch-skill'));
+      await fireEvent.press(getByTestId('switch-add-path'));
+
+      expect(mockPush).toHaveBeenCalledWith('/onboarding/skill');
+    });
   });
 
   it('draws a disc for every technique', async () => {
@@ -192,7 +270,9 @@ describe('PathScreen', () => {
 
       await fireEvent.press(getByTestId('node-tec_2'));
 
-      expect(getByText('You need the shapes before you can change between them.')).toBeOnTheScreen();
+      expect(
+        getByText('You need the shapes before you can change between them.'),
+      ).toBeOnTheScreen();
       expect(getByTestId('sheet-start')).toBeOnTheScreen();
     });
 

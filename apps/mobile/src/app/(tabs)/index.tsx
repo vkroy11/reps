@@ -16,7 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNotebook } from '../../features/notes/useNotes';
-import { usePath, usePathList } from '../../features/paths/usePaths';
+import { usePath, usePathList, usePathsFor } from '../../features/paths/usePaths';
 import { usePracticeHistory, useWeek } from '../../features/progress/useStreak';
 import { DayPanel } from '../../features/today/DayPanel';
 import { HeroPage } from '../../features/today/HeroPage';
@@ -75,6 +75,9 @@ export default function TodayScreen() {
   const { paths, focusedId, loading: listLoading, error: listError, reload } = usePathList();
   const { path, loading: pathLoading } = usePath(focusedId);
   const { entries, streak, loading: historyLoading } = usePracticeHistory();
+  // Every hobby, not just the one in focus: the pager renders a page each.
+  const pathIds = useMemo(() => paths.map((item) => item.id), [paths]);
+  const pathsById = usePathsFor(pathIds);
   const { notes } = useNotebook();
   const [openDay, setOpenDay] = useState<LocalDay | null>(null);
 
@@ -196,19 +199,25 @@ export default function TodayScreen() {
         onFocus={focusPath}
         onAddPath={() => router.push('/onboarding/skill')}
         pageWidth={pageWidth}
-        renderPage={(summary) =>
-          summary.id === focusedId && pathLoading ? (
-            <HeroSkeleton />
-          ) : (
+        /*
+          Each page is drawn from its own path, so a hobby swiped to is already
+          complete rather than filling in after focus settles.
+        */
+        renderPage={(summary) => {
+          const own = pathsById[summary.id] ?? null;
+          if (!own) return <HeroSkeleton />;
+
+          return (
             <HeroPage
               summary={summary}
-              active={summary.id === focusedId ? active : null}
+              active={own.techniques.find((technique) => technique.status === 'active') ?? null}
               streak={streak}
               onStart={(techniqueId) => router.push(`/practice/${techniqueId}`)}
               onOpen={(techniqueId) => router.push(`/technique/${techniqueId}`)}
+              testID={`hero-page-${summary.id}`}
             />
-          )
-        }
+          );
+        }}
       />
     );
 

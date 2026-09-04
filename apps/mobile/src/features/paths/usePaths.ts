@@ -1,6 +1,6 @@
-import { ApiError, resolveFocusedPathId } from '@reps/client';
+import { ApiError, orderPaths, resolveFocusedPathId } from '@reps/client';
 import type { LearningPath, LearningPathSummary } from '@reps/core';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useApp } from '../../providers/app-provider';
 import { usePathCache } from './path-cache';
 
@@ -28,9 +28,13 @@ export function usePathList(): PathListState {
     ensureList();
   }, [ensureList]);
 
+  // Ordered once, here, so the pager, the focus default and the switcher all
+  // agree about which hobby comes first.
+  const paths = useMemo(() => orderPaths(summaries ?? []), [summaries]);
+
   return {
-    paths: summaries ?? [],
-    focusedId: resolveFocusedPathId(summaries ?? [], focusedPathId),
+    paths,
+    focusedId: resolveFocusedPathId(paths, focusedPathId),
     error: listError,
     loading: summaries === null && listError === null,
     reload: refreshList,
@@ -68,4 +72,26 @@ export function usePath(pathId: string | null): PathState {
       if (pathId) refreshPath(pathId);
     }, [pathId, refreshPath]),
   };
+}
+
+/**
+ * Every one of these paths, fetched and held together.
+ *
+ * The hero pager renders a page per hobby, and a page that only knows its
+ * summary can show the goal but not the rep - so swiping produced a visible
+ * flash: the incoming page appeared with its summary line, then the real
+ * technique replaced it once focus settled. Fetching them all up front means
+ * every page is complete before it is swiped to.
+ *
+ * Cheap to call repeatedly: the cache returns immediately for anything already
+ * held or already in flight.
+ */
+export function usePathsFor(pathIds: readonly string[]): Record<string, LearningPath> {
+  const { pathsById, ensurePath } = usePathCache();
+
+  useEffect(() => {
+    for (const pathId of pathIds) ensurePath(pathId);
+  }, [pathIds, ensurePath]);
+
+  return pathsById;
 }

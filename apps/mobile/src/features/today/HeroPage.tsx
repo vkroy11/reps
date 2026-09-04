@@ -7,13 +7,15 @@ import { SessionPlan } from './SessionPlan';
 export interface HeroPageProps {
   summary: LearningPathSummary;
   /**
-   * Only supplied for the path in focus. A rep started on a hobby the learner
-   * has merely swiped past would be a rep started by accident.
+   * This path's own next rep. Null once the path is finished, or while it is
+   * still being fetched - the caller substitutes a placeholder for the latter,
+   * so a page never shows a hobby's summary in place of its rep.
    */
   active: Technique | null;
   streak: StreakState;
   onStart: (techniqueId: string) => void;
   onOpen: (techniqueId: string) => void;
+  testID?: string;
 }
 
 /**
@@ -27,12 +29,12 @@ export interface HeroPageProps {
  * is, then what it costs, then what it buys you, then the button. Every line
  * answers the objection the previous one raises.
  */
-export function HeroPage({ summary, active, streak, onStart, onOpen }: HeroPageProps) {
+export function HeroPage({ summary, active, streak, onStart, onOpen, testID }: HeroPageProps) {
   const finished = summary.completedCount >= summary.techniqueCount;
 
   if (finished) {
     return (
-      <View style={styles.page}>
+      <View style={styles.page} testID={testID}>
         <Text variant="overline" style={styles.kicker}>
           {summary.skill.toUpperCase()}
         </Text>
@@ -48,7 +50,7 @@ export function HeroPage({ summary, active, streak, onStart, onOpen }: HeroPageP
 
   if (!active) {
     return (
-      <View style={styles.page}>
+      <View style={styles.page} testID={testID}>
         <Text variant="overline" style={styles.kicker}>
           {summary.skill.toUpperCase()}
         </Text>
@@ -64,7 +66,7 @@ export function HeroPage({ summary, active, streak, onStart, onOpen }: HeroPageP
   }
 
   return (
-    <View style={styles.page}>
+    <View style={styles.page} testID={testID}>
       <View style={styles.mood}>
         <Text variant="caption" style={moodStyle(streak)}>
           {moodLine(active, streak)}
