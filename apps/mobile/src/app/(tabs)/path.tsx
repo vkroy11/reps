@@ -1,9 +1,10 @@
 import { stageCount } from '@reps/core';
-import { PipLogo, Skeleton, Text, color, space } from '@reps/ui';
+import { PipLogo, Text, color, space } from '@reps/ui';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BoardSkeleton } from '../../features/path/BoardSkeleton';
 import { PathBoard } from '../../features/path/PathBoard';
 import { StartSheet } from '../../features/paths/StartSheet';
 import { usePath, usePathList } from '../../features/paths/usePaths';
@@ -75,13 +76,7 @@ export default function PathScreen() {
           </View>
         ) : null}
 
-        {listLoading || loading ? (
-          <View style={styles.stack}>
-            <Skeleton height={64} />
-            <Skeleton height={64} delay={80} />
-            <Skeleton height={64} delay={160} />
-          </View>
-        ) : null}
+        {listLoading || loading ? <BoardSkeleton /> : null}
 
         {!listLoading && !focusedId ? (
           <View style={styles.empty}>
@@ -122,6 +117,5 @@ const styles = StyleSheet.create({
   title: { flex: 1, minWidth: 0 },
   count: { flexShrink: 0, paddingTop: 6 },
   subhead: { marginTop: space.xs, marginBottom: space.base, gap: 2 },
-  stack: { gap: space.sm },
   empty: { alignItems: 'center', gap: space.base, paddingTop: space.xxl },
 });
