@@ -80,6 +80,28 @@ describe('the trail', () => {
     expect(total).toBe(lengths[3]);
   });
 
+  /**
+   * Arc length, not the straight line between discs. The fill is measured in
+   * these units, so under-measuring the bends leaves the green short of the
+   * disc it has reached.
+   */
+  it('measures the curve rather than the chord', () => {
+    const from = { x: 0, y: 0 };
+    const to = { x: 200, y: 100 };
+    const { total } = trailPath([from, to]);
+
+    expect(total).toBeGreaterThan(Math.hypot(200, 100));
+  });
+
+  it('measures a straight vertical run as its own height', () => {
+    const { total } = trailPath([
+      { x: 50, y: 0 },
+      { x: 50, y: 100 },
+    ]);
+
+    expect(total).toBeCloseTo(100, 1);
+  });
+
   it('draws nothing for an empty path rather than throwing', () => {
     expect(trailPath([])).toEqual({ d: '', lengths: [0], total: 0 });
   });

@@ -59,7 +59,7 @@ export const PathBoard = memo(function PathBoard({
   );
 
   const trailProps = useAnimatedProps(() => ({
-    strokeDashoffset: TRAIL_LENGTH * (1 - trail.value),
+    strokeDashoffset: total * (1 - trail.value),
   }));
 
   const entranceStyle = useAnimatedStyle(() => {
@@ -106,10 +106,16 @@ export const PathBoard = memo(function PathBoard({
           strokeWidth={board.trailWidth}
           strokeLinecap="round"
           fill="none"
-          // Dash values in user units, not the percentages `pathLength` would
-          // give: pathLength is not in this version of react-native-svg's
-          // PathProps, so it would be dropped and the fill would never move.
-          strokeDasharray={TRAIL_LENGTH}
+          /*
+            Dashed with the trail's own measured length, in user units.
+
+            `pathLength` would let these be percentages, but it is not in this
+            version of react-native-svg's PathProps and would be dropped. A
+            fixed guess does not work either: it was tried at 4000, far longer
+            than any real board, and the single dash then covered the whole
+            path no matter the offset - the trail was green to the bottom.
+          */
+          strokeDasharray={total}
           animatedProps={trailProps}
         />
       </Svg>
@@ -204,15 +210,6 @@ export const PathBoard = memo(function PathBoard({
     </View>
   );
 });
-
-/**
- * The dash length the fill is expressed in.
- *
- * A fixed number rather than the measured path length: the real length is only
- * knowable by measuring the rendered path, and any value at least as long as
- * the path works, since the dash simply has to be able to cover it.
- */
-const TRAIL_LENGTH = 4000;
 
 /** `skipped` has no board colour of its own; it reads as unwalked. */
 function statusOf(status: Technique['status']): PathNodeStatus {

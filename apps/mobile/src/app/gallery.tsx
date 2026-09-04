@@ -82,6 +82,18 @@ export default function GalleryScreen() {
         { paddingTop: insets.top + space.base, paddingBottom: insets.bottom + space.xxl },
       ]}
     >
+      <Text variant="overline" tone="textSecondary" style={styles.label}>
+        Path board
+      </Text>
+      <Text variant="caption" tone="textSecondary">
+        Seven techniques, two gates, a mastery ring on the active disc.
+      </Text>
+      <PathBoard
+        techniques={BOARD_FIXTURE}
+        goal="play 5 songs at a campfire"
+        onSelect={() => setPressCount((n) => n + 1)}
+      />
+
       <View style={styles.hero}>
         <PipLogo size={72} expression={expression} onPress={() => setPressCount((n) => n + 1)} />
         <View style={styles.heroText}>
@@ -205,17 +217,6 @@ export default function GalleryScreen() {
         <Row label="API base" value={resolveApiBaseUrl()} />
       </Card>
 
-      <Text variant="overline" tone="textSecondary" style={styles.label}>
-        Path board
-      </Text>
-      <Text variant="caption" tone="textSecondary">
-        Seven techniques, two gates, a mastery ring on the active disc.
-      </Text>
-      <PathBoard
-        techniques={BOARD_FIXTURE}
-        goal="play 5 songs at a campfire"
-        onSelect={() => setPressCount((n) => n + 1)}
-      />
     </ScrollView>
   );
 }

@@ -86,14 +86,48 @@ export function layoutBoard(
   return { items, centres, height: y + board.tailSpace };
 }
 
+/** Samples per curve when measuring its length. 24 is within a pixel. */
+const ARC_SAMPLES = 24;
+
+function cubicAt(a: number, b: number, c: number, d: number, t: number): number {
+  const u = 1 - t;
+
+  return u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d;
+}
+
 /**
- * A cubic bezier through the disc centres, plus the cumulative straight-line
- * distance to each one.
+ * Length of one cubic bezier, by walking it in short straight hops.
  *
- * The lengths are what the progress fill is measured against. They are
- * chord lengths rather than true arc lengths, which understates each curve
- * slightly and uniformly - the fill lands a hair short of a disc's centre
- * rather than past it, which is the harmless direction to be wrong in.
+ * A cubic's arc length has no closed form, and the fill needs a real number
+ * rather than an approximation: `strokeDashoffset` is measured in the path's
+ * own units, so a length that is even 10% off puts the end of the green
+ * somewhere other than the disc it is supposed to reach.
+ */
+function curveLength(from: BoardPoint, ctrl1: BoardPoint, ctrl2: BoardPoint, to: BoardPoint) {
+  let length = 0;
+  let previousX = from.x;
+  let previousY = from.y;
+
+  for (let step = 1; step <= ARC_SAMPLES; step += 1) {
+    const t = step / ARC_SAMPLES;
+    const x = cubicAt(from.x, ctrl1.x, ctrl2.x, to.x, t);
+    const y = cubicAt(from.y, ctrl1.y, ctrl2.y, to.y, t);
+
+    length += Math.hypot(x - previousX, y - previousY);
+    previousX = x;
+    previousY = y;
+  }
+
+  return length;
+}
+
+/**
+ * A cubic bezier through the disc centres, plus the arc length to each one.
+ *
+ * The lengths are what the progress fill is measured against, and they are the
+ * curve's real length rather than the straight-line distance between discs.
+ * Chord lengths were the first attempt and they under-measure every bend, so
+ * the green stopped short of the disc it had reached.
  */
 export function trailPath(centres: BoardPoint[]): {
   d: string;
@@ -116,9 +150,11 @@ export function trailPath(centres: BoardPoint[]): {
     // A minimum bend keeps the S-curve legible even between two discs in the
     // same column, where the vertical delta alone would draw a straight line.
     const bend = Math.max(40, (to.y - from.y) * 0.45);
+    const ctrl1 = { x: from.x, y: from.y + bend };
+    const ctrl2 = { x: to.x, y: to.y - bend };
 
-    d += ` C ${from.x} ${from.y + bend} ${to.x} ${to.y - bend} ${to.x} ${to.y}`;
-    lengths.push((lengths[index - 1] ?? 0) + Math.hypot(to.x - from.x, to.y - from.y));
+    d += ` C ${ctrl1.x} ${ctrl1.y} ${ctrl2.x} ${ctrl2.y} ${to.x} ${to.y}`;
+    lengths.push((lengths[index - 1] ?? 0) + curveLength(from, ctrl1, ctrl2, to));
   }
 
   return { d, lengths, total: lengths[lengths.length - 1] ?? 0 };
