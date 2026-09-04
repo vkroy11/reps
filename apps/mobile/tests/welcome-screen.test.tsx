@@ -1,5 +1,6 @@
 import { emptyDraft, type OnboardingDraft } from '@reps/client';
 import { fireEvent } from '@testing-library/react-native';
+import { Text as MockText } from 'react-native';
 import WelcomeScreen from '../src/app/index';
 import { renderScreen } from './support/render-screen';
 
@@ -9,15 +10,19 @@ const mockClearDraft = jest.fn();
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: mockPush, replace: jest.fn(), back: jest.fn() }),
   Link: ({ children }: { children: React.ReactNode }) => children,
+  // Stands in for the real navigation so the destination is assertable.
+  Redirect: ({ href }: { href: string }) => <MockText testID="redirect">{href}</MockText>,
 }));
 
 let mockDraft: OnboardingDraft = emptyDraft;
 let mockReady = true;
+let mockOnboarded = false;
 
 jest.mock('../src/providers/app-provider', () => ({
   useApp: () => ({
     draft: mockDraft,
     ready: mockReady,
+    onboarded: mockOnboarded,
     clearDraft: mockClearDraft,
     api: null,
     patchDraft: jest.fn(),
@@ -31,6 +36,7 @@ describe('WelcomeScreen', () => {
     mockClearDraft.mockClear();
     mockDraft = emptyDraft;
     mockReady = true;
+    mockOnboarded = false;
   });
 
   it('offers a single way in when there is nothing saved', async () => {
@@ -81,14 +87,43 @@ describe('WelcomeScreen', () => {
     expect(mockPush).toHaveBeenCalledWith('/onboarding/skill');
   });
 
-  /** Storage is async, so the resume affordance must not flash in before it loads. */
-  it('does not offer resume until storage has been read', async () => {
+  describe('once a path has been built', () => {
+    beforeEach(() => {
+      mockOnboarded = true;
+    });
+
+    it('opens on Today instead of the welcome copy', async () => {
+      const { getByTestId, queryByTestId } = await renderScreen(<WelcomeScreen />);
+
+      expect(getByTestId('redirect')).toHaveTextContent('/(tabs)');
+      expect(queryByTestId('get-started')).toBeNull();
+    });
+
+    /** A half-finished second path must not send a returning learner backwards. */
+    it('redirects even with a draft in progress', async () => {
+      mockDraft = { skill: 'chess' };
+
+      const { getByTestId, queryByTestId } = await renderScreen(<WelcomeScreen />);
+
+      expect(getByTestId('redirect')).toHaveTextContent('/(tabs)');
+      expect(queryByTestId('resume')).toBeNull();
+    });
+  });
+
+  /**
+   * Storage is async and decides which screen the app opens on, so nothing may
+   * paint until it has been read - rendering the welcome copy and redirecting
+   * afterwards is the flash this avoids.
+   */
+  it('renders nothing until storage has been read', async () => {
     mockDraft = { skill: 'guitar' };
+    mockOnboarded = true;
     mockReady = false;
 
-    const { queryByTestId, getByTestId } = await renderScreen(<WelcomeScreen />);
+    const { queryByTestId } = await renderScreen(<WelcomeScreen />);
 
+    expect(queryByTestId('redirect')).toBeNull();
+    expect(queryByTestId('get-started')).toBeNull();
     expect(queryByTestId('resume')).toBeNull();
-    expect(getByTestId('get-started')).toBeOnTheScreen();
   });
 });

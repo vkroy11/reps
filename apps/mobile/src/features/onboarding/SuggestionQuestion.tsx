@@ -10,7 +10,6 @@ import {
   radius,
   space,
   typeScale,
-  useReduceMotion,
   type PanelKey,
 } from '@reps/ui';
 import { useEffect, useRef, useState } from 'react';
@@ -61,7 +60,6 @@ export function SuggestionQuestion({
   onSubmit,
   customPlaceholder,
 }: SuggestionQuestionProps) {
-  const reduceMotion = useReduceMotion();
   const { data, error, loading, retry } = useSuggestions(skill);
   const [selected, setSelected] = useState<string | undefined>(value);
   const [custom, setCustom] = useState('');
@@ -81,18 +79,20 @@ export function SuggestionQuestion({
 
   /**
    * Advances itself after a beat. The delay is not decoration: the tick has to
-   * be seen landing, or the screen appears to change for no reason and the
-   * learner cannot tell which option they picked.
+   * be seen landing on the chosen card, or the screen appears to change for no
+   * reason and the learner cannot tell what they just answered.
+   *
+   * Kept under Reduce Motion, unlike the animations around it. The tick still
+   * appears there, it simply appears instantly - and needing time to perceive a
+   * state change is not a motion preference. Removing the pause would make this
+   * screen *harder* to follow for the people that setting is for.
+   *
+   * Tapping a second card inside the window replaces the pending advance, so
+   * the answer that navigates is always the last one touched.
    */
   const pick = (label: string) => {
     setCustomOpen(false);
     setSelected(label);
-
-    if (reduceMotion) {
-      onSubmit(label);
-
-      return;
-    }
 
     if (advanceTimer.current) clearTimeout(advanceTimer.current);
     advanceTimer.current = setTimeout(() => onSubmit(label), motion.autoAdvance);

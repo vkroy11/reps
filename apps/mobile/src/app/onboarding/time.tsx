@@ -1,5 +1,4 @@
-import { stepAfter } from '@reps/client';
-import { Text, accentOn, panels, radius, space, typeScale } from '@reps/ui';
+import { Text, accentOn, panels, space, typeScale } from '@reps/ui';
 import { useRouter } from 'expo-router';
 import Clock from 'lucide-react-native/icons/clock';
 import { useState } from 'react';
@@ -7,6 +6,7 @@ import { StyleSheet, View } from 'react-native';
 import { DayRow } from '../../features/onboarding/DayRow';
 import { ImmersiveScaffold } from '../../features/onboarding/ImmersiveScaffold';
 import { MinutesSlider } from '../../features/onboarding/MinutesSlider';
+import { nextHref } from '../../features/onboarding/navigation';
 import { useApp } from '../../providers/app-provider';
 
 const DEFAULT_MINUTES = 20;
@@ -29,7 +29,7 @@ export default function TimeScreen() {
       canContinue
       onContinue={() => {
         patchDraft({ dailyMinutes, daysPerWeek });
-        router.push(`/onboarding/${stepAfter('time')}`);
+        router.push(nextHref('time'));
       }}
     >
       {/*

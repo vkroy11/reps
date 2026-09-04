@@ -1,19 +1,33 @@
 import { firstIncompleteStep } from '@reps/client';
-import { usePathList } from '../features/paths/usePaths';
 import { Button, PipLogo, Text, color, space } from '@reps/ui';
-import { Link, useRouter } from 'expo-router';
+import { Link, Redirect, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../providers/app-provider';
 
+/**
+ * The first-run screen, and only the first run.
+ *
+ * Anyone who has finished the questionnaire once is sent straight to Today.
+ * That decision is made from a locally cached flag rather than the path list,
+ * because reading the list means a request: the learner would get a spinner on
+ * every cold start, or worse, a flash of this screen before the redirect. The
+ * flag is corrected against the real list by the Today screen, so a device
+ * whose paths were deleted server-side comes back here on the next launch.
+ */
 export default function WelcomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { draft, ready } = useApp();
-  const { paths, loading: pathsLoading } = usePathList();
+  const { draft, onboarded, ready } = useApp();
+
+  // Nothing is decided until storage has been read - rendering the welcome
+  // copy first and redirecting after would be the flash this avoids.
+  if (!ready) return null;
+
+  if (onboarded) return <Redirect href="/(tabs)" />;
 
   // A draft only counts as resumable once the first answer exists.
-  const hasDraft = ready && Boolean(draft.skill);
+  const hasDraft = Boolean(draft.skill);
   const resumeStep = firstIncompleteStep(draft);
 
   return (
@@ -30,15 +44,6 @@ export default function WelcomeScreen() {
       </View>
 
       <View style={styles.actions}>
-        {/* Someone with paths already is here by accident; send them to Today. */}
-        {!pathsLoading && paths.length > 0 ? (
-          <Button
-            label="Continue learning"
-            onPress={() => router.replace('/(tabs)')}
-            testID="continue-learning"
-          />
-        ) : null}
-
         {hasDraft ? (
           <>
             <Button

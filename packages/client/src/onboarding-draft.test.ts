@@ -3,7 +3,13 @@ import {
   createDraftStore,
   emptyDraft,
   firstIncompleteStep,
+  flowProgress,
+  isQuestionStep,
   isStepComplete,
+  onboardingFlow,
+  onboardingSteps,
+  stepAfter,
+  stepBefore,
   toOnboardingInput,
   type OnboardingDraft,
 } from './onboarding-draft';
@@ -108,5 +114,50 @@ describe('draft store', () => {
     await storage.setItem(storageKey.onboardingDraft, JSON.stringify({ dailyMinutes: 'twenty' }));
 
     expect(await createDraftStore(storage).load()).toEqual(emptyDraft);
+  });
+});
+
+describe('the immersive flow order', () => {
+  it('puts each interstitial after the answer it reframes', () => {
+    expect([...onboardingFlow]).toEqual([
+      'skill',
+      'goal',
+      'cheer1',
+      'level',
+      'time',
+      'cheer2',
+      'formats',
+    ]);
+  });
+
+  it('keeps every question in the flow', () => {
+    expect(onboardingFlow.filter(isQuestionStep)).toEqual([...onboardingSteps]);
+  });
+
+  it('walks forwards and lands on generating past the last question', () => {
+    expect(stepAfter('skill')).toBe('goal');
+    expect(stepAfter('goal')).toBe('cheer1');
+    expect(stepAfter('cheer2')).toBe('formats');
+    expect(stepAfter('formats')).toBe('generating');
+  });
+
+  it('walks backwards and stops before the first question', () => {
+    expect(stepBefore('goal')).toBe('skill');
+    expect(stepBefore('level')).toBe('cheer1');
+    expect(stepBefore('skill')).toBeNull();
+  });
+
+  /**
+   * The ring counts position in the whole flow, interstitials included, so it
+   * keeps moving on a screen that holds no answer. Counting questions instead
+   * would leave it frozen through both cheers.
+   */
+  it('advances the ring on an interstitial too', () => {
+    expect(flowProgress('goal')).toBeLessThan(flowProgress('cheer1'));
+    expect(flowProgress('cheer1')).toBeLessThan(flowProgress('level'));
+  });
+
+  it('fills the ring exactly on the last question', () => {
+    expect(flowProgress('formats')).toBe(1);
   });
 });

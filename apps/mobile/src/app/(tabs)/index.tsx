@@ -2,7 +2,7 @@ import { pathProgress } from '@reps/client';
 import { Button, Card, PipLogo, ProgressBar, Skeleton, Text, color, space } from '@reps/ui';
 import { useRouter } from 'expo-router';
 import ChevronDown from 'lucide-react-native/icons/chevron-down';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PathSwitcher } from '../../features/paths/PathSwitcher';
@@ -21,10 +21,20 @@ import { useApp } from '../../providers/app-provider';
 export default function TodayScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { focusPath } = useApp();
+  const { focusPath, reconcileOnboarded } = useApp();
   const { paths, focusedId, loading: listLoading, error: listError, reload } = usePathList();
   const { path, loading: pathLoading } = usePath(focusedId);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+
+  /*
+    The one place that knows the real path count, so it is where the cached
+    landing flag gets corrected. Without this, a device whose paths were
+    deleted server-side would keep skipping the welcome screen forever and land
+    on an empty Today.
+  */
+  useEffect(() => {
+    if (!listLoading && !listError) reconcileOnboarded(paths.length);
+  }, [listLoading, listError, paths.length, reconcileOnboarded]);
 
   const focusedSummary = paths.find((item) => item.id === focusedId) ?? null;
   const active = path?.techniques.find((technique) => technique.status === 'active') ?? null;

@@ -1,5 +1,5 @@
-import { stepAfter } from '@reps/client';
 import { useRouter } from 'expo-router';
+import { nextHref } from '../../features/onboarding/navigation';
 import { SuggestionQuestion } from '../../features/onboarding/SuggestionQuestion';
 import { useApp } from '../../providers/app-provider';
 
@@ -19,7 +19,7 @@ export default function GoalScreen() {
       customPlaceholder="e.g. play 5 songs at a campfire"
       onSubmit={(goal) => {
         patchDraft({ goal });
-        router.push(`/onboarding/${stepAfter('goal')}`);
+        router.push(nextHref('goal'));
       }}
     />
   );

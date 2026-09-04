@@ -1,4 +1,4 @@
-import { Text, accentOn, inkOn, radius, space, springConfig, useReduceMotion, type Panel } from '@reps/ui';
+import { Text, accentOn, inkOn, springConfig, useReduceMotion, type Panel } from '@reps/ui';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,

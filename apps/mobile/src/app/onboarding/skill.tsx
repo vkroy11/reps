@@ -1,10 +1,10 @@
-import { stepAfter } from '@reps/client';
-import { accentOn, panels, radius, space, typeScale } from '@reps/ui';
+import { accentOn, color, panels, space, typeScale } from '@reps/ui';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import { CyclingExamples } from '../../features/onboarding/CyclingExamples';
 import { ImmersiveScaffold } from '../../features/onboarding/ImmersiveScaffold';
+import { nextHref } from '../../features/onboarding/navigation';
 import { PanelChip } from '../../features/onboarding/PanelChip';
 import { useApp } from '../../providers/app-provider';
 
@@ -40,7 +40,7 @@ export default function SkillScreen() {
         patchDraft(
           changedSkill ? { skill: trimmed, goal: undefined, level: undefined } : { skill: trimmed },
         );
-        router.push(`/onboarding/${stepAfter('skill')}`);
+        router.push(nextHref('skill'));
       }}
     >
       {/*
@@ -52,7 +52,9 @@ export default function SkillScreen() {
         value={skill}
         onChangeText={setSkill}
         placeholder="Guitar"
-        placeholderTextColor={panel.ink2}
+        // ink2 is 0.76 white on this panel, close enough to real text that the
+        // placeholder read as an answer already filled in.
+        placeholderTextColor={panel.onDark ? 'rgba(255,255,255,0.45)' : color.iconDecorative}
         autoCapitalize="words"
         autoCorrect={false}
         returnKeyType="next"

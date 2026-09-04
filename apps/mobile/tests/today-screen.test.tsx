@@ -5,6 +5,7 @@ import { renderScreen } from './support/render-screen';
 
 const mockPush = jest.fn();
 const mockFocusPath = jest.fn();
+const mockReconcileOnboarded = jest.fn();
 const mockReload = jest.fn();
 
 jest.mock('expo-router', () => ({
@@ -13,7 +14,12 @@ jest.mock('expo-router', () => ({
 }));
 
 jest.mock('../src/providers/app-provider', () => ({
-  useApp: () => ({ focusPath: mockFocusPath, api: null, ready: true }),
+  useApp: () => ({
+    focusPath: mockFocusPath,
+    reconcileOnboarded: mockReconcileOnboarded,
+    api: null,
+    ready: true,
+  }),
 }));
 
 let mockList: {

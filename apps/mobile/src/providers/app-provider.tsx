@@ -2,6 +2,7 @@ import {
   createApiClient,
   createDraftStore,
   createFocusStore,
+  createOnboardedStore,
   emptyDraft,
   type ApiClient,
   type OnboardingDraft,
@@ -20,6 +21,17 @@ interface AppContextValue {
   clearDraft: () => Promise<void>;
   /** One request serves onboarding questions 2 and 3, so it is cached per skill. */
   loadSuggestions: (skill: string) => Promise<OnboardingSuggestions>;
+  /**
+   * Whether this device has ever finished the questionnaire, read from storage
+   * before the first paint. This is what lets the app open on Today instead of
+   * the welcome screen with no network round-trip and no flash of the wrong
+   * screen.
+   */
+  onboarded: boolean;
+  /** Called once a path exists, so the next cold start skips the welcome. */
+  markOnboarded: () => void;
+  /** Corrects the cached flag against the real path count once it arrives. */
+  reconcileOnboarded: (pathCount: number) => void;
   /** The path the learner explicitly switched to, if any. */
   focusedPathId: string | null;
   /** Persisted, so the choice survives a restart and a switch is one tap. */
@@ -33,9 +45,11 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const draftStore = useMemo(() => createDraftStore(storage), []);
   const focusStore = useMemo(() => createFocusStore(storage), []);
+  const onboardedStore = useMemo(() => createOnboardedStore(storage), []);
   const [api, setApi] = useState<ApiClient | null>(null);
   const [draft, setDraft] = useState<OnboardingDraft>(emptyDraft);
   const [focusedPathId, setFocusedPathId] = useState<string | null>(null);
+  const [onboarded, setOnboarded] = useState(false);
   const [ready, setReady] = useState(false);
 
   // Keyed by skill so switching skills refetches, but Q2 -> Q3 does not.
@@ -45,23 +59,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let active = true;
 
     void (async () => {
-      const [deviceId, storedDraft, storedFocus] = await Promise.all([
+      const [deviceId, storedDraft, storedFocus, storedOnboarded] = await Promise.all([
         getDeviceId(),
         draftStore.load(),
         focusStore.load(),
+        onboardedStore.load(),
       ]);
       if (!active) return;
 
       setApi(createApiClient({ baseUrl: resolveApiBaseUrl(), deviceId }));
       setDraft(storedDraft);
       setFocusedPathId(storedFocus);
+      setOnboarded(storedOnboarded);
       setReady(true);
     })();
 
     return () => {
       active = false;
     };
-  }, [draftStore, focusStore]);
+  }, [draftStore, focusStore, onboardedStore]);
 
   const patchDraft = useCallback(
     (patch: Partial<OnboardingDraft>) => {
@@ -82,6 +98,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDraft(emptyDraft);
     await draftStore.clear();
   }, [draftStore]);
+
+  const markOnboarded = useCallback(() => {
+    setOnboarded(true);
+    void onboardedStore.save(true);
+  }, [onboardedStore]);
+
+  const reconcileOnboarded = useCallback(
+    (pathCount: number) => {
+      setOnboarded((current) => {
+        void onboardedStore.reconcile(current, pathCount);
+
+        return pathCount > 0;
+      });
+    },
+    [onboardedStore],
+  );
 
   const focusPath = useCallback(
     (pathId: string) => {
@@ -112,8 +144,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ api, draft, patchDraft, clearDraft, loadSuggestions, focusedPathId, focusPath, ready }),
-    [api, draft, patchDraft, clearDraft, loadSuggestions, focusedPathId, focusPath, ready],
+    () => ({
+      api,
+      draft,
+      patchDraft,
+      clearDraft,
+      loadSuggestions,
+      onboarded,
+      markOnboarded,
+      reconcileOnboarded,
+      focusedPathId,
+      focusPath,
+      ready,
+    }),
+    [
+      api,
+      draft,
+      patchDraft,
+      clearDraft,
+      loadSuggestions,
+      onboarded,
+      markOnboarded,
+      reconcileOnboarded,
+      focusedPathId,
+      focusPath,
+      ready,
+    ],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

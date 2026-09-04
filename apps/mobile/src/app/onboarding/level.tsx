@@ -1,5 +1,5 @@
-import { stepAfter } from '@reps/client';
 import { useRouter } from 'expo-router';
+import { nextHref } from '../../features/onboarding/navigation';
 import { SuggestionQuestion } from '../../features/onboarding/SuggestionQuestion';
 import { useApp } from '../../providers/app-provider';
 
@@ -19,7 +19,7 @@ export default function LevelScreen() {
       customPlaceholder="e.g. I can hold chords but changes stall"
       onSubmit={(level) => {
         patchDraft({ level });
-        router.push(`/onboarding/${stepAfter('level')}`);
+        router.push(nextHref('level'));
       }}
     />
   );

@@ -55,8 +55,14 @@ export function LoadingSuggestions({ panel, skill }: { panel: Panel; skill: stri
         </View>
       </View>
 
-      {/* Same heights and radius as the cards they stand in for, so nothing
-          shifts when the real answers arrive. */}
+      {/*
+        Same heights and radius as the cards they stand in for, so nothing
+        shifts when the real answers arrive.
+
+        Left on Skeleton's default surfaceLocked fill rather than tinted to the
+        panel: its sweep is a white gradient, so a white box would shimmer
+        white-on-white and look frozen - the one thing a skeleton must not do.
+      */}
       <Skeleton height={92} borderRadius={20} />
       <Skeleton height={92} borderRadius={20} delay={90} />
       <Skeleton height={78} borderRadius={20} delay={180} />

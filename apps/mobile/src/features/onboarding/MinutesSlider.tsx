@@ -1,4 +1,4 @@
-import { accentOn, radius, useReduceMotion, type Panel } from '@reps/ui';
+import { accentOn, radius, trackOn, useReduceMotion, type Panel } from '@reps/ui';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -110,8 +110,13 @@ export function MinutesSlider({ value, onChange, panel }: MinutesSliderProps) {
           nudge(event.nativeEvent.actionName === 'increment' ? 1 : -1)
         }
       >
+        {/*
+          trackOn, not panel.ghost. This bar lives inside a `panel.tile` card,
+          which is white on every light panel - and ghost is translucent white
+          there, so the unfilled groove disappeared completely.
+        */}
         <View
-          style={[styles.track, { backgroundColor: panel.ghost }]}
+          style={[styles.track, { backgroundColor: trackOn(panel) }]}
           onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
         >
           <Animated.View style={[styles.fill, { backgroundColor: accent }, fillStyle]} />
