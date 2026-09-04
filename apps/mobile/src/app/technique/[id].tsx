@@ -233,7 +233,13 @@ export default function TechniqueScreen() {
             </Text>
             {notes.length === 0 ? (
               <Text variant="caption" tone="textSecondary">
-                Nothing yet. Notes you take while watching land here with the moment they belong to.
+                {/* "while watching" is wrong on a technique with no video -
+                    caught on the emulator, where a flashcards technique showed
+                    it. The empty state has to describe the practice this
+                    technique actually has. */}
+                {primaryResource
+                  ? 'Nothing yet. Notes you take while watching land here with the moment they belong to.'
+                  : 'Nothing yet. Anything you notice while practising lands here.'}
               </Text>
             ) : (
               notes.map((note) => (
