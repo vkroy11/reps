@@ -1,21 +1,43 @@
+import { stageCount } from '@reps/core';
 import { Card, Text, color, space } from '@reps/ui';
 import { Link } from 'expo-router';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePath, usePathList } from '../../features/paths/usePaths';
+import { usePracticeHistory } from '../../features/progress/useStreak';
+import { ReminderCard } from '../../features/reminders/ReminderCard';
+import { useReminder } from '../../features/reminders/useReminder';
 import { resolveApiBaseUrl } from '../../lib/api-base-url';
-import { usePathList } from '../../features/paths/usePaths';
 
 /**
- * Four rows, not a settings screen. Streaks, reminders and Google sign-in
- * appear here once they have real data behind them - a streak counter with
- * nothing driving it would just be decoration.
+ * Not a settings screen: what you have done, one reminder, and the build.
+ *
+ * Every number here is counted from stored rows - sessions, badges, minutes -
+ * rather than estimated, which is why they only appeared once practice was
+ * actually being recorded.
  */
 export default function MeScreen() {
   const insets = useSafeAreaInsets();
-  const { paths } = usePathList();
+  const { paths, focusedId } = usePathList();
+  const { path } = usePath(focusedId);
+  const { entries, streak } = usePracticeHistory();
 
-  const completed = paths.reduce((sum, path) => sum + path.completedCount, 0);
-  const total = paths.reduce((sum, path) => sum + path.techniqueCount, 0);
+  const focused = paths.find((item) => item.id === focusedId) ?? null;
+  const active = path?.techniques.find((technique) => technique.status === 'active') ?? null;
+
+  const reminder = useReminder({
+    entries,
+    nextTechnique: active?.title ?? null,
+    minutesPerSession: active?.estimatedMinutes ?? focused?.dailyMinutes ?? 20,
+  });
+
+  const completed = paths.reduce((sum, item) => sum + item.completedCount, 0);
+  const total = paths.reduce((sum, item) => sum + item.techniqueCount, 0);
+  const xp = paths.reduce((sum, item) => sum + item.xp, 0);
+  const badges = paths.reduce((sum, item) => sum + item.badges.length, 0);
+  const gates = paths.reduce((sum, item) => sum + stageCount(item.techniqueCount), 0);
+  const hours = Math.floor(streak.totalMinutes / 60);
+  const restMinutes = streak.totalMinutes % 60;
 
   return (
     <ScrollView
@@ -30,17 +52,43 @@ export default function MeScreen() {
       <Card>
         <Row label="Skills in progress" value={`${paths.length}`} />
         <Row label="Techniques mastered" value={`${completed} of ${total}`} />
+        <Row label="Gates cleared" value={`${badges} of ${gates}`} />
+        <Row label="XP" value={`${xp}`} />
       </Card>
 
       <Text variant="overline" tone="textSecondary" style={styles.label}>
-        Coming next
+        Practice
       </Text>
       <Card>
-        <Text variant="caption" tone="textSecondary">
-          Practice reminders, the streak calendar and optional Google sign-in for cross-device sync
-          land once practice sessions are recorded — Phase 7.
-        </Text>
+        <Row
+          label="Current streak"
+          value={streak.current === 0 ? 'none yet' : `${streak.current} days`}
+        />
+        <Row
+          label="Best streak"
+          value={streak.longest === 0 ? 'none yet' : `${streak.longest} days`}
+        />
+        <Row
+          label="Time practised"
+          value={
+            streak.totalMinutes === 0
+              ? 'none yet'
+              : hours === 0
+                ? `${restMinutes} min`
+                : `${hours} hr ${restMinutes} min`
+          }
+        />
       </Card>
+
+      <Text variant="overline" tone="textSecondary" style={styles.label}>
+        Reminder
+      </Text>
+      <ReminderCard
+        settings={reminder.settings}
+        permission={reminder.permission}
+        ready={reminder.ready}
+        onChange={(patch) => void reminder.update(patch)}
+      />
 
       <Text variant="overline" tone="textSecondary" style={styles.label}>
         Build

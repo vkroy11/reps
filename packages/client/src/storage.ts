@@ -18,6 +18,7 @@ export const storageKey = {
   onboardingDraft: 'reps.onboarding-draft',
   focusedPathId: 'reps.focused-path-id',
   onboarded: 'reps.onboarded',
+  reminder: 'reps.reminder',
 } as const;
 
 /**
