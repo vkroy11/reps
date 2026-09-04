@@ -17,6 +17,7 @@
     "build:web": "npm run build:web -w @reps/mobile",
     "verify:web": "node scripts/verify-web-build.mjs",
     "build:api": "npm run build -w @reps/api",
+    "build:render": "npm ci --include=dev -w @reps/api --include-workspace-root && npm run db:generate:ci -w @reps/api && npm run db:deploy:ci -w @reps/api && npm run build:api",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",

@@ -16,6 +16,11 @@ services:
     region: oregon
     healthCheckPath: /api/health
 
+    # The build is one script in package.json rather than four commands here,
+    # so the same definition serves the blueprint and a hand-made service - and
+    # so nobody has to paste a 200-character line into a web form, which is how
+    # a deploy ends up running `npm` and nothing else.
+    #
     # `-w @reps/api --include-workspace-root` is load-bearing. A plain `npm ci`
     # installs every workspace, and apps/mobile pulls in Expo and React Native:
     # 6.3 GB of node_modules for a service that needs 373 MB of it. Scoping the
@@ -29,16 +34,15 @@ services:
     # deploy while the previous release is still serving, and cold starts stay
     # fast. Every migration in this repo is additive, so the schema being one
     # release ahead of the code for a moment is safe.
-    buildCommand: |
-      npm ci --include=dev -w @reps/api --include-workspace-root
-      npm run db:generate:ci -w @reps/api
-      npm run db:deploy:ci -w @reps/api
-      npm run build:api
+    buildCommand: npm run build:render
     startCommand: npm run start -w @reps/api
 
     envVars:
-      # Node 22 rather than latest: tsup targets node20 and nothing here needs
-      # a newer runtime, so this pins out a class of surprise upgrade.
+      # The root package.json says `engines: >=20`, which Render reads as
+      # "newest available" - it picked 26. That works (the whole build and boot
+      # were verified on 26.8.1), but "newest available" is not a version: the
+      # runtime could change under the deploy without anything in the repo
+      # changing. 22 is what tsup targets, so it is the one to pin to.
       - key: NODE_VERSION
         value: '22'
       - key: NODE_ENV
