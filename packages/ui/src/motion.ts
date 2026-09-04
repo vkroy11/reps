@@ -18,6 +18,15 @@ export const exitEasing = bezier(easing.exit);
  * there is still one source per value.
  */
 export const motion = {
+  /** The trail travelling to a newly reached disc. Long enough to read as travel. */
+  trailFill: { duration: 1000, easing: standardEasing },
+  /** A mastery ring topping up on the active disc. */
+  masteryRing: { duration: 800, easing: standardEasing },
+  /** One period of the gate's glow once its techniques are done. */
+  gateGlowPeriod: 2600,
+  /** How far a newly unlocked disc rises into place. */
+  unlockRise: 26,
+  unlockScaleFrom: 0.7,
   /** Cross-fade of the full-bleed panel between questionnaire steps. */
   panelFade: { duration: 450, easing: standardEasing },
   /** How long a single-select answer stays visible before advancing itself. */

@@ -12,6 +12,7 @@ export * from './Button';
 export * from './Chip';
 export * from './Card';
 export * from './Skeleton';
+export * from './board';
 export * from './ProgressBar';
 export * from './ProgressRing';
 export * from './KeyboardAvoider';

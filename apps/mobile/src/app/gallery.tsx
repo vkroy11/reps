@@ -13,11 +13,44 @@ import {
   useReduceMotion,
   type PipExpression,
 } from '@reps/ui';
+import type { Technique } from '@reps/core';
 import { useState } from 'react';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PathBoard } from '../features/path/PathBoard';
 
 const EXPRESSIONS: PipExpression[] = ['idle', 'think', 'cheer', 'struggle'];
+
+/**
+ * A seven-technique board with two gates: enough to see the serpentine turn
+ * over, one cleared gate, one locked, and a partially practised active disc
+ * with a mastery ring.
+ */
+const BOARD_FIXTURE: Technique[] = [
+  ['Open chords', 'completed', 12],
+  ['Chord transitions', 'completed', 14],
+  ['Strumming patterns', 'completed', 10],
+  ['Barre chords', 'active', 18],
+  ['Fingerpicking', 'locked', 16],
+  ['Playing in time', 'locked', 12],
+  ['Your first full song', 'locked', 20],
+].map(([title, status, minutes], index) => ({
+  id: `tec_gallery_${index}`,
+  pathId: 'path_gallery',
+  order: index,
+  title: title as string,
+  whyItMatters: 'Sample data for the design harness.',
+  modality: 'watch_and_do',
+  practicePrompt: 'Sample rep.',
+  estimatedMinutes: minutes as number,
+  status: status as Technique['status'],
+  confidence: null,
+  struggleCount: 0,
+  practiceMinutes: status === 'active' ? 7 : 0,
+  bridgeForTechniqueId: null,
+  searchQueries: [],
+  resources: [],
+}));
 const FORMATS = ['Video', 'Hands-on drills', 'Reading', 'Flashcards'];
 
 /**
@@ -171,6 +204,18 @@ export default function GalleryScreen() {
         <Row label="Reduce motion" value={reduceMotion ? 'ON — springs disabled' : 'off'} />
         <Row label="API base" value={resolveApiBaseUrl()} />
       </Card>
+
+      <Text variant="overline" tone="textSecondary" style={styles.label}>
+        Path board
+      </Text>
+      <Text variant="caption" tone="textSecondary">
+        Seven techniques, two gates, a mastery ring on the active disc.
+      </Text>
+      <PathBoard
+        techniques={BOARD_FIXTURE}
+        goal="play 5 songs at a campfire"
+        onSelect={() => setPressCount((n) => n + 1)}
+      />
     </ScrollView>
   );
 }

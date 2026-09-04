@@ -81,19 +81,97 @@ describe('PathScreen', () => {
     mockPathState = { path, loading: false };
   });
 
-  it('draws every technique on the spine', async () => {
-    const { getByText } = await renderScreen(<PathScreen />);
+  it('draws a disc for every technique', async () => {
+    const { getByTestId } = await renderScreen(<PathScreen />);
+
+    for (const id of ['tec_1', 'tec_2', 'tec_3', 'tec_4']) {
+      expect(getByTestId(`node-${id}`)).toBeOnTheScreen();
+    }
+  });
+
+  it('labels every technique beside its disc', async () => {
+    const { getByText, getAllByText } = await renderScreen(<PathScreen />);
 
     expect(getByText('Open chords')).toBeOnTheScreen();
     expect(getByText('Chord transitions')).toBeOnTheScreen();
-    expect(getByText('Barre chords')).toBeOnTheScreen();
     expect(getByText('Fingerpicking')).toBeOnTheScreen();
+    // Twice: the disc label, and the gate this technique capstones.
+    expect(getAllByText('Barre chords')).toHaveLength(2);
+  });
+
+  it('numbers the discs as levels', async () => {
+    const { getByText } = await renderScreen(<PathScreen />);
+
+    expect(getByText('1')).toBeOnTheScreen();
+    expect(getByText('4')).toBeOnTheScreen();
+  });
+
+  describe('gates', () => {
+    it('states what is left rather than just showing a lock', async () => {
+      const { getByText } = await renderScreen(<PathScreen />);
+
+      // One of four is done, and the gate sits after the third.
+      expect(getByText('2 techniques to go')).toBeOnTheScreen();
+    });
+
+    it('says cleared once its three techniques are done', async () => {
+      mockPathState = {
+        path: {
+          ...path,
+          techniques: path.techniques.map((item, index) =>
+            index < 3 ? { ...item, status: 'completed' as const } : item,
+          ),
+        },
+        loading: false,
+      };
+
+      const { getByText } = await renderScreen(<PathScreen />);
+
+      expect(getByText('Gate cleared')).toBeOnTheScreen();
+    });
+
+    /** Singular, because "1 techniques to go" is the tell of a templated string. */
+    it('counts one remaining technique in the singular', async () => {
+      mockPathState = {
+        path: {
+          ...path,
+          techniques: path.techniques.map((item, index) =>
+            index < 2 ? { ...item, status: 'completed' as const } : item,
+          ),
+        },
+        loading: false,
+      };
+
+      const { getByText } = await renderScreen(<PathScreen />);
+
+      expect(getByText('1 technique to go')).toBeOnTheScreen();
+    });
+  });
+
+  it('holds the goal at the finish marker, so the map has an end', async () => {
+    const { getAllByText } = await renderScreen(<PathScreen />);
+
+    // Once in the subhead, once at the finish.
+    expect(getAllByText('play 5 songs at a campfire')).toHaveLength(2);
+  });
+
+  /** Counted from stored badges and sessions, never estimated. */
+  it('reports XP and gates cleared from real totals', async () => {
+    const { getByText } = await renderScreen(<PathScreen />);
+
+    expect(getByText('0 XP · 0 of 2 gates cleared')).toBeOnTheScreen();
   });
 
   it('marks where the learner is', async () => {
     const { getByText } = await renderScreen(<PathScreen />);
 
     expect(getByText('You are here')).toBeOnTheScreen();
+  });
+
+  it('marks finished techniques as mastered', async () => {
+    const { getByText } = await renderScreen(<PathScreen />);
+
+    expect(getByText('Mastered')).toBeOnTheScreen();
   });
 
   it('shows a removed technique as removed rather than hiding it', async () => {
