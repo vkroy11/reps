@@ -147,7 +147,7 @@ export default function TodayScreen() {
 
               <Button
                 label="Start practice"
-                onPress={() => router.push('/path')}
+                onPress={() => router.push(`/technique/${active.id}`)}
                 testID="start-practice"
               />
             </Card>
