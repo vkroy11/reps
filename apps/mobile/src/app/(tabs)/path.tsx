@@ -1,96 +1,121 @@
-import type { Technique, TechniqueStatus } from '@reps/core';
-import { PipLogo, Skeleton, Text, color, radius, space } from '@reps/ui';
+import type { Technique } from '@reps/core';
+import { PathNode, PipLogo, Skeleton, Text, color, radius, space } from '@reps/ui';
+import { useRouter } from 'expo-router';
 import Flag from 'lucide-react-native/icons/flag';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle, Path as SvgPath } from 'react-native-svg';
+import { StartSheet } from '../../features/paths/StartSheet';
 import { usePath, usePathList } from '../../features/paths/usePaths';
 
 /**
- * The path as a single vertical spine, the way the mockup draws it: nodes on a
- * continuous rail, alternating side to side for rhythm, lime behind you and
- * slate ahead.
+ * The path as a single vertical spine: nodes on a continuous rail, alternating
+ * side to side for rhythm, lime behind you and slate ahead.
  *
  * Deliberately not a branching graph - the moodboard capture of roadmap.sh on a
- * phone showed a wide graph collapsing to unreadable labels. Phase 5 adds the
- * start sheet and node animation on top of this.
+ * phone showed a wide graph collapsing to unreadable labels. Every node is
+ * tappable, including locked ones, because a tap that does nothing reads as a
+ * broken app.
  */
 const NODE = 54;
 const RAIL_WIDTH = 4;
 
 export default function PathScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { focusedId, paths, loading: listLoading } = usePathList();
   const { path, loading } = usePath(focusedId);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const summary = paths.find((item) => item.id === focusedId) ?? null;
+  const techniques = path?.techniques ?? [];
+  const openIndex = techniques.findIndex((item) => item.id === openId);
+  const open = openIndex === -1 ? null : (techniques[openIndex] ?? null);
+
+  // What has to be finished before a locked technique opens.
+  const blockedBy =
+    open?.status === 'locked'
+      ? (techniques
+          .slice(0, openIndex)
+          .reverse()
+          .find((item) => item.status === 'active' || item.status === 'locked') ?? null)
+      : null;
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + space.base, paddingBottom: insets.bottom + space.xxl },
-      ]}
-    >
-      <View style={styles.header}>
-        {/* flex + minWidth:0 lets a long skill ellipsise instead of shoving the count off screen. */}
-        <Text variant="title" style={styles.title} numberOfLines={2}>
-          {summary?.skill ?? 'Your path'}
-        </Text>
+    <View style={styles.screen}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + space.base, paddingBottom: insets.bottom + space.xxl },
+        ]}
+      >
+        <View style={styles.header}>
+          {/* flex + minWidth:0 lets a long skill ellipsise instead of shoving the count off. */}
+          <Text variant="title" style={styles.title} numberOfLines={2}>
+            {summary?.skill ?? 'Your path'}
+          </Text>
+          {summary ? (
+            <Text variant="caption" tone="textSecondary" style={styles.count}>
+              {summary.completedCount} of {summary.techniqueCount}
+            </Text>
+          ) : null}
+        </View>
+
         {summary ? (
-          <Text variant="caption" tone="textSecondary" style={styles.count}>
-            {summary.completedCount} of {summary.techniqueCount}
+          <Text variant="caption" tone="textSecondary" numberOfLines={2} style={styles.goal}>
+            {summary.goal}
           </Text>
         ) : null}
-      </View>
 
-      {summary ? (
-        <Text variant="caption" tone="textSecondary" numberOfLines={2} style={styles.goal}>
-          {summary.goal}
-        </Text>
-      ) : null}
+        {listLoading || loading ? (
+          <View style={styles.stack}>
+            <Skeleton height={64} />
+            <Skeleton height={64} delay={80} />
+            <Skeleton height={64} delay={160} />
+          </View>
+        ) : null}
 
-      {listLoading || loading ? (
-        <View style={styles.stack}>
-          <Skeleton height={64} />
-          <Skeleton height={64} delay={80} />
-          <Skeleton height={64} delay={160} />
-        </View>
-      ) : null}
-
-      {!listLoading && !focusedId ? (
-        <View style={styles.empty}>
-          <PipLogo size={88} />
-          <Text variant="body" tone="textSecondary" center>
-            No path yet. Start one from Today.
-          </Text>
-        </View>
-      ) : null}
-
-      {path ? (
-        <View style={styles.spine}>
-          {path.techniques.map((technique, index) => (
-            <Step
-              key={technique.id}
-              technique={technique}
-              alignRight={index % 2 === 1}
-              isFirst={index === 0}
-              isLast={index === path.techniques.length - 1}
-              previousDone={
-                index > 0 && path.techniques[index - 1]?.status === 'completed'
-              }
-            />
-          ))}
-          <View style={styles.finish}>
-            <Flag size={20} color={color.iconDecorative} strokeWidth={2.4} />
-            <Text variant="caption" tone="textSecondary">
-              {path.goal}
+        {!listLoading && !focusedId ? (
+          <View style={styles.empty}>
+            <PipLogo size={88} />
+            <Text variant="body" tone="textSecondary" center>
+              No path yet. Start one from Today.
             </Text>
           </View>
-        </View>
-      ) : null}
-    </ScrollView>
+        ) : null}
+
+        {path ? (
+          <View style={styles.spine}>
+            {techniques.map((technique, index) => (
+              <Step
+                key={technique.id}
+                technique={technique}
+                alignRight={index % 2 === 1}
+                isFirst={index === 0}
+                previousDone={index > 0 && techniques[index - 1]?.status === 'completed'}
+                onPress={() => setOpenId(technique.id)}
+              />
+            ))}
+            <View style={styles.finish}>
+              <Flag size={20} color={color.iconDecorative} strokeWidth={2.4} />
+              <Text variant="caption" tone="textSecondary" style={styles.finishText}>
+                {path.goal}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
+
+      <StartSheet
+        technique={open}
+        blockedBy={blockedBy}
+        onClose={() => setOpenId(null)}
+        onStart={(techniqueId) => {
+          setOpenId(null);
+          router.push(`/technique/${techniqueId}`);
+        }}
+      />
+    </View>
   );
 }
 
@@ -99,12 +124,13 @@ function Step({
   alignRight,
   isFirst,
   previousDone,
+  onPress,
 }: {
   technique: Technique;
   alignRight: boolean;
   isFirst: boolean;
-  isLast: boolean;
   previousDone: boolean;
+  onPress: () => void;
 }) {
   const active = technique.status === 'active';
   const done = technique.status === 'completed';
@@ -123,7 +149,13 @@ function Step({
         />
       ) : null}
 
-      <Node status={technique.status} />
+      <PathNode
+        status={technique.status}
+        size={NODE}
+        onPress={onPress}
+        label={`${technique.title}, ${technique.status}`}
+        testID={`node-${technique.id}`}
+      />
 
       <View style={styles.stepText}>
         <Text
@@ -148,56 +180,6 @@ function Step({
   );
 }
 
-function Node({ status }: { status: TechniqueStatus }) {
-  const fill =
-    status === 'completed'
-      ? color.progress
-      : status === 'active'
-        ? color.brand
-        : color.surfaceLocked;
-
-  return (
-    <View style={styles.node}>
-      <Svg width={NODE} height={NODE} viewBox="0 0 54 54">
-        {/* The current node wears a soft halo so "you are here" reads at a glance. */}
-        {status === 'active' ? (
-          <Circle cx={27} cy={27} r={26} stroke={color.brandSoft} strokeWidth={4} fill="none" />
-        ) : null}
-        <Circle cx={27} cy={27} r={status === 'active' ? 23 : 24} fill={fill} />
-
-        {status === 'completed' ? (
-          <SvgPath
-            d="M17 27.5l6.5 6.5L38 20"
-            stroke="#FFFFFF"
-            strokeWidth={4}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            fill="none"
-          />
-        ) : null}
-        {status === 'active' ? <SvgPath d="M22 18v18l14-9z" fill="#FFFFFF" /> : null}
-        {status === 'locked' ? (
-          <SvgPath
-            d="M20 26h14v10H20zM23 26v-4a4 4 0 0 1 8 0v4"
-            stroke={color.iconDecorative}
-            strokeWidth={2.4}
-            strokeLinejoin="round"
-            fill="none"
-          />
-        ) : null}
-        {status === 'skipped' ? (
-          <SvgPath
-            d="M19 19l16 16M35 19L19 35"
-            stroke={color.iconDecorative}
-            strokeWidth={3}
-            strokeLinecap="round"
-          />
-        ) : null}
-      </Svg>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.surfacePage },
   content: {
@@ -215,7 +197,6 @@ const styles = StyleSheet.create({
   spine: { paddingLeft: space.sm },
   step: { flexDirection: 'row', alignItems: 'center', gap: space.base, paddingVertical: space.sm },
   stepRight: { paddingLeft: space.xl },
-  node: { width: NODE, height: NODE },
   rail: {
     position: 'absolute',
     width: RAIL_WIDTH,
@@ -234,4 +215,5 @@ const styles = StyleSheet.create({
     paddingLeft: NODE / 2 - 10,
     paddingTop: space.base,
   },
+  finishText: { flex: 1, minWidth: 0 },
 });
