@@ -2,16 +2,17 @@ import { useEffect } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import Animated, {
   Easing,
+  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
-  withSequence,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useReduceMotion } from './hooks/useReduceMotion';
-import { color, duration, springConfig } from './tokens';
+import { haloPulse } from './motion-curves';
+import { color, springConfig } from './tokens';
 
 export type PathNodeStatus = 'completed' | 'active' | 'locked' | 'skipped';
 
@@ -25,7 +26,7 @@ export interface PathNodeProps {
   testID?: string;
 }
 
-const PULSE_PERIOD = 1600;
+
 
 /**
  * A node on the path spine.
@@ -55,19 +56,24 @@ export function PathNode({
       return;
     }
 
+    /*
+      A linear driver, with every curve in the interpolation below.
+
+      Linear matters for a loop: an eased driver decelerates into the wrap and
+      then restarts at full speed, and that speed discontinuity is visible as a
+      hitch once per cycle. A linear clock wraps at constant velocity, so the
+      seam has nothing to give it away.
+    */
     pulse.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: PULSE_PERIOD * 0.7, easing: Easing.out(Easing.quad) }),
-        withTiming(0, { duration: 0 }),
-        withTiming(0, { duration: PULSE_PERIOD * 0.3 }),
-      ),
+      withTiming(1, { duration: haloPulse.periodMs, easing: Easing.linear }),
       -1,
     );
   }, [pulse, status, reduceMotion]);
 
   const haloStyle = useAnimatedStyle(() => ({
-    opacity: 0.45 * (1 - pulse.value),
-    transform: [{ scale: 1 + pulse.value * 0.35 }],
+    opacity: interpolate(pulse.value, haloPulse.clock, haloPulse.opacity),
+    // Front-loaded growth, which is what the ease-out used to provide.
+    transform: [{ scale: interpolate(pulse.value, haloPulse.clock, haloPulse.scale) }],
   }));
 
   const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: press.value }] }));
@@ -203,6 +209,3 @@ const styles = StyleSheet.create({
     borderColor: color.brand,
   },
 });
-
-/** Exposed so screens can match the spine's timing when they animate around it. */
-export const pathNodePulsePeriod = duration.slow;

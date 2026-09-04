@@ -6,6 +6,7 @@
 
 export * from './tokens';
 export * from './motion';
+export * from './motion-curves';
 export * from './panels';
 export * from './Text';
 export * from './Button';
