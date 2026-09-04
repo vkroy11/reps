@@ -26,6 +26,13 @@ export default function TabLayout() {
         headerShown: false,
         tabBarActiveTintColor: color.brand,
         tabBarInactiveTintColor: color.iconDecorative,
+        /*
+          The left rail draws a filled pill behind the active item, which the
+          bottom bar does not. Left at the default that pill is brand-filled
+          under brand-tinted label and icon - invisible. brandSoft under brand
+          measures 5.17, and matches the selected-chip language elsewhere.
+        */
+        tabBarActiveBackgroundColor: isWide ? color.brandSoft : undefined,
         sceneStyle: { backgroundColor: color.surfacePage },
         tabBarPosition: isWide ? 'left' : 'bottom',
         tabBarStyle: isWide

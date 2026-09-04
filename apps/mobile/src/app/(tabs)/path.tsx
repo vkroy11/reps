@@ -113,7 +113,10 @@ export default function PathScreen() {
   if (isWide) {
     return (
       <View style={[styles.wide, { paddingTop: insets.top + space.base }]}>
-        <ScrollView contentContainerStyle={styles.widePane}>
+        {/* Width belongs on the scroll view, not its content container: on
+            the container the view still takes flex space and leaves a dead
+            gap between the board and the detail pane. */}
+        <ScrollView style={styles.boardPane} contentContainerStyle={styles.boardPaneContent}>
           {header}
           {board}
         </ScrollView>
@@ -171,11 +174,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   wide: { flex: 1, flexDirection: 'row', backgroundColor: color.surfacePage },
-  widePane: {
-    paddingHorizontal: space.lg,
-    paddingBottom: space.xxl,
-    width: 420,
-  },
+  boardPane: { width: 420, flexGrow: 0, flexShrink: 0 },
+  boardPaneContent: { paddingHorizontal: space.lg, paddingBottom: space.xxl },
   detailPane: {
     flex: 1,
     minWidth: 0,
