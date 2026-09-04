@@ -3,6 +3,7 @@ import {
   TechniqueContentSchema,
   ResourceCandidateSchema,
   type Badge,
+  type Confidence,
   type LearningPathSummary,
   type Note,
   type NoteWithContext,
@@ -546,7 +547,14 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
           where: { userId },
           orderBy: { createdAt: 'desc' },
           take: limit,
-          select: { createdAt: true, minutes: true, xp: true, pathId: true },
+          select: {
+            createdAt: true,
+            minutes: true,
+            xp: true,
+            pathId: true,
+            techniqueId: true,
+            confidence: true,
+          },
         });
 
         return rows.map((row) => ({
@@ -554,6 +562,8 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
           minutes: row.minutes,
           xp: row.xp,
           pathId: row.pathId,
+          techniqueId: row.techniqueId,
+          confidence: row.confidence as Confidence,
         }));
       },
 

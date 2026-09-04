@@ -378,6 +378,8 @@ export function createMemoryRepositories(): Repositories {
             minutes: session.minutes,
             xp: session.xp,
             pathId: session.pathId,
+            techniqueId: session.techniqueId,
+            confidence: session.confidence,
           }));
       },
 

@@ -17,6 +17,8 @@ function entry(day: string, minutes = 20): PracticeEntry {
     minutes,
     xp: minutes * 2,
     pathId: 'path_1',
+    techniqueId: 'tec_1',
+    confidence: 'getting_there',
   };
 }
 
@@ -78,7 +80,7 @@ describe('practised days', () => {
 
   it('ignores an unparseable timestamp rather than throwing', () => {
     const days = practisedDays([
-      { at: 'not a date', minutes: 5, xp: 10, pathId: 'p' },
+      { ...entry('2026-09-04'), at: 'not a date' },
       entry('2026-09-04'),
     ]);
 

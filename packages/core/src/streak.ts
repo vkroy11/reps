@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ConfidenceSchema } from './domain';
 
 /**
  * Streaks and practice history.
@@ -22,6 +23,15 @@ export const PracticeEntrySchema = z.object({
   minutes: z.number().int().nonnegative(),
   xp: z.number().int().nonnegative(),
   pathId: z.string(),
+  techniqueId: z.string(),
+  /**
+   * How it went, as the learner reported it.
+   *
+   * Carried so a day can be described rather than only measured. "Solid" is
+   * also what completes a technique, which is what lets the heatmap tell a
+   * day that cleared a level apart from a day that put minutes in.
+   */
+  confidence: ConfidenceSchema,
 });
 export type PracticeEntry = z.infer<typeof PracticeEntrySchema>;
 

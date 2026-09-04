@@ -10,7 +10,14 @@ import {
 import { fromLocalDay, toLocalDay, type PracticeEntry } from './streak';
 
 function entry(day: string): PracticeEntry {
-  return { at: fromLocalDay(day).toISOString(), minutes: 20, xp: 50, pathId: 'p' };
+  return {
+    at: fromLocalDay(day).toISOString(),
+    minutes: 20,
+    xp: 50,
+    pathId: 'p',
+    techniqueId: 't',
+    confidence: 'solid',
+  };
 }
 
 function settings(overrides: Partial<ReminderSettings> = {}): ReminderSettings {
@@ -122,7 +129,7 @@ describe('planning a reminder', () => {
     const plan = planReminder({
       ...base,
       settings: settings(),
-      entries: [{ at: 'nonsense', minutes: 5, xp: 1, pathId: 'p' }],
+      entries: [{ ...entry('2026-09-05'), at: 'nonsense' }],
     });
 
     expect(plan).not.toBeNull();

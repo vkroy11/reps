@@ -8,6 +8,7 @@ export * from './ai';
 export * from './api';
 export * from './domain';
 export * from './modality';
+export * from './insights';
 export * from './progress';
 export * from './reminders';
 export * from './streak';

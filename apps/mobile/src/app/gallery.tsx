@@ -30,7 +30,14 @@ const WEEK_FIXTURE = weekEndingToday(
     const at = new Date();
     at.setDate(at.getDate() - back);
 
-    return { at: at.toISOString(), minutes: back === 1 ? 6 : 20, xp: 40, pathId: 'path_gallery' };
+    return {
+      at: at.toISOString(),
+      minutes: back === 1 ? 6 : 20,
+      xp: 40,
+      pathId: 'path_gallery',
+      techniqueId: `tec_${back}`,
+      confidence: back === 1 ? 'struggling' : 'solid',
+    };
   }),
   today(),
   { dailyMinutes: 20, daysPerWeek: 5 },
