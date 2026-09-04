@@ -5,7 +5,7 @@ import { useFonts } from 'expo-font';
 import { Nunito_400Regular } from '@expo-google-fonts/nunito/400Regular';
 import { Nunito_600SemiBold } from '@expo-google-fonts/nunito/600SemiBold';
 import { Nunito_800ExtraBold } from '@expo-google-fonts/nunito/800ExtraBold';
-import { color } from '@reps/ui';
+import { KeyboardAvoider, color } from '@reps/ui';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -38,12 +38,20 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <AppProvider>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: color.surfacePage },
-            }}
-          />
+          {/*
+            Wrapped once here rather than per screen. Every text input in the
+            app - the skill field, a free-text answer, the note composer - sits
+            below the fold on its screen, and each one previously went under
+            the keyboard on iOS along with the CTA beneath it.
+          */}
+          <KeyboardAvoider>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: color.surfacePage },
+              }}
+            />
+          </KeyboardAvoider>
           <StatusBar style="dark" />
         </AppProvider>
       </SafeAreaProvider>
