@@ -32,5 +32,13 @@ export default tseslint.config(
     files: ['**/*.config.js', '**/jest.setup.js'],
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
+  {
+    // Build and deploy scripts run under Node, not in the app bundle, so the
+    // Node globals are legitimate here and nowhere else.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { process: 'readonly', console: 'readonly' },
+    },
+  },
   prettier,
 );

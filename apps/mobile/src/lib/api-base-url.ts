@@ -10,6 +10,15 @@ import Constants from 'expo-constants';
  * on a simulator and on a physical device without rebuilding.
  *
  * Production reads the baked-in value, which is what we want there.
+ *
+ * **The trap.** Metro's transform cache is not keyed on `EXPO_PUBLIC_*`
+ * values, so a build that ran once without the variable keeps serving the
+ * cached transform - with this whole branch dead-code eliminated - however
+ * many times it is set afterwards. On a host with a persistent build cache
+ * that means setting the variable in the dashboard, redeploying, and shipping
+ * `localhost` anyway, with nothing in the config looking wrong. `build:web`
+ * therefore passes `--clear`, and `scripts/verify-web-build.mjs` checks the
+ * built bundle rather than trusting it.
  */
 const DEFAULT_PORT = 4000;
 

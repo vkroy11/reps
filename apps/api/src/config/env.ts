@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { config } from 'dotenv';
 import { z } from 'zod';
-import { envSchema } from './env.schema';
+import { productionEnvSchema } from './env.schema';
 
 // Supports running from the repo root or from apps/api.
 config({
@@ -9,7 +9,7 @@ config({
   quiet: true,
 });
 
-const parsed = envSchema.safeParse(process.env);
+const parsed = productionEnvSchema.safeParse(process.env);
 
 if (!parsed.success) {
   console.error('Invalid environment:', z.treeifyError(parsed.error));

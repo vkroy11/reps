@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build:web",
+  "outputDirectory": "apps/mobile/dist",
+  "installCommand": "npm ci -w @reps/mobile --include-workspace-root",
+  "framework": null,
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/technique/:id",
+      "destination": "/technique/[id]"
+    },
+    {
+      "source": "/practice/:id",
+      "destination": "/practice/[id]"
+    }
+  ]
+}

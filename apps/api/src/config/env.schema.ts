@@ -63,4 +63,37 @@ export const envSchema = z.object({
   SESSION_DAYS: z.coerce.number().int().positive().default(90),
 });
 
+/**
+ * The production-only rules, checked at boot rather than at first use.
+ *
+ * Both of these were already enforced - but lazily, inside the code paths that
+ * need them. That is the wrong moment for a deploy: the service boots, passes
+ * its health check, serves every anonymous request correctly, and then throws
+ * a 500 the first time somebody taps "Sign in". A misconfiguration that only
+ * appears on one code path is the hardest kind to notice.
+ *
+ * Refusing to start instead means a bad deploy fails visibly, while the
+ * previous release is still serving traffic.
+ */
+export const productionEnvSchema = envSchema.superRefine((value, ctx) => {
+  if (value.NODE_ENV !== 'production') return;
+
+  if (!value.SESSION_SECRET) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['SESSION_SECRET'],
+      message:
+        'Required in production. Without it the signing key is random per process, so every restart signs everyone out - and a free-tier host restarts constantly.',
+    });
+  }
+
+  if (value.AUTH_PROVIDER === 'fake') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['AUTH_PROVIDER'],
+      message: 'AUTH_PROVIDER=fake accepts any identity, so it must never reach production.',
+    });
+  }
+});
+
 export type Env = z.infer<typeof envSchema>;

@@ -14,7 +14,9 @@
     "db:generate": "dotenv -e ../../.env -- prisma generate",
     "db:migrate": "dotenv -e ../../.env -- prisma migrate dev",
     "db:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
-    "db:studio": "dotenv -e ../../.env -- prisma studio"
+    "db:studio": "dotenv -e ../../.env -- prisma studio",
+    "db:generate:ci": "prisma generate",
+    "db:deploy:ci": "prisma migrate deploy"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",

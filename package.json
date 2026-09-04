@@ -15,6 +15,7 @@
     "dev:web": "npm run web -w @reps/mobile",
     "dev:api": "npm run dev -w @reps/api",
     "build:web": "npm run build:web -w @reps/mobile",
+    "verify:web": "node scripts/verify-web-build.mjs",
     "build:api": "npm run build -w @reps/api",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint .",
