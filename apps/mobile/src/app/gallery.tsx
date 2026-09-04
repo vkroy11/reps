@@ -124,6 +124,8 @@ export default function GalleryScreen() {
       <PathBoard
         techniques={BOARD_FIXTURE}
         goal="play 5 songs at a campfire"
+        seenDone={null}
+        onUnlockPlayed={() => undefined}
         onSelect={() => setPressCount((n) => n + 1)}
       />
 

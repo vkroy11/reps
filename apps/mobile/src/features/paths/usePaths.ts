@@ -1,13 +1,8 @@
 import { ApiError, resolveFocusedPathId } from '@reps/client';
 import type { LearningPath, LearningPathSummary } from '@reps/core';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useApp } from '../../providers/app-provider';
-
-function toApiError(caught: unknown): ApiError {
-  return caught instanceof ApiError
-    ? caught
-    : new ApiError('UnexpectedResponse', (caught as Error).message);
-}
+import { usePathCache } from './path-cache';
 
 interface PathListState {
   paths: LearningPathSummary[];
@@ -20,41 +15,25 @@ interface PathListState {
 /**
  * Every path the learner has, most recently practised first, plus which one
  * the home screen should focus on.
+ *
+ * A reader over the shared cache rather than its own fetch. Several screens
+ * ask for this at once and they must agree - and a mutation on one of them has
+ * to be visible on the others without a reload.
  */
 export function usePathList(): PathListState {
-  const { api, ready, focusedPathId } = useApp();
-  const [paths, setPaths] = useState<LearningPathSummary[] | null>(null);
-  const [error, setError] = useState<ApiError | null>(null);
-  const [attempt, setAttempt] = useState(0);
+  const { focusedPathId } = useApp();
+  const { summaries, listError, ensureList, refreshList } = usePathCache();
 
   useEffect(() => {
-    if (!ready || !api) return;
-
-    let active = true;
-    setError(null);
-
-    api
-      .listPaths()
-      .then((result) => {
-        if (active) setPaths(result);
-      })
-      .catch((caught: unknown) => {
-        if (!active) return;
-        setPaths(null);
-        setError(toApiError(caught));
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [api, ready, attempt]);
+    ensureList();
+  }, [ensureList]);
 
   return {
-    paths: paths ?? [],
-    focusedId: resolveFocusedPathId(paths ?? [], focusedPathId),
-    error,
-    loading: paths === null && error === null,
-    reload: useCallback(() => setAttempt((value) => value + 1), []),
+    paths: summaries ?? [],
+    focusedId: resolveFocusedPathId(summaries ?? [], focusedPathId),
+    error: listError,
+    loading: summaries === null && listError === null,
+    reload: refreshList,
   };
 }
 
@@ -65,40 +44,28 @@ interface PathState {
   reload: () => void;
 }
 
-/** One path with its techniques and resources. */
+/**
+ * One path with its techniques and resources.
+ *
+ * Served from memory once fetched, so switching skills back and forth costs
+ * nothing and shows no skeleton for data already held.
+ */
 export function usePath(pathId: string | null): PathState {
-  const { api, ready } = useApp();
-  const [path, setPath] = useState<LearningPath | null>(null);
-  const [error, setError] = useState<ApiError | null>(null);
-  const [attempt, setAttempt] = useState(0);
+  const { pathsById, errorsById, ensurePath, refreshPath } = usePathCache();
 
   useEffect(() => {
-    if (!ready || !api || !pathId) return;
+    if (pathId) ensurePath(pathId);
+  }, [pathId, ensurePath]);
 
-    let active = true;
-    setError(null);
-
-    api
-      .getPath(pathId)
-      .then((result) => {
-        if (active) setPath(result);
-      })
-      .catch((caught: unknown) => {
-        if (!active) return;
-        setPath(null);
-        setError(toApiError(caught));
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [api, ready, pathId, attempt]);
+  const path = pathId ? (pathsById[pathId] ?? null) : null;
+  const error = pathId ? (errorsById[pathId] ?? null) : null;
 
   return {
-    // Keep the previous path visible while a switch loads, rather than flashing empty.
-    path: path && path.id === pathId ? path : null,
+    path,
     error,
-    loading: Boolean(pathId) && path?.id !== pathId && error === null,
-    reload: useCallback(() => setAttempt((value) => value + 1), []),
+    loading: Boolean(pathId) && path === null && error === null,
+    reload: useCallback(() => {
+      if (pathId) refreshPath(pathId);
+    }, [pathId, refreshPath]),
   };
 }

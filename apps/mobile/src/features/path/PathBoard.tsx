@@ -13,7 +13,7 @@ import {
   type PathNodeStatus,
 } from '@reps/ui';
 import Star from 'lucide-react-native/icons/star';
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedProps, useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
@@ -26,6 +26,14 @@ export interface PathBoardProps {
   techniques: Technique[];
   /** The goal, shown at the finish marker so the map has a destination. */
   goal: string;
+  /**
+   * Completions this board has already shown, when that differs from the
+   * current count. The trail animates from there, which is how a completion
+   * made on another screen is played out on arrival.
+   */
+  seenDone: number | null;
+  /** Called once the unlock has played, so it happens exactly once. */
+  onUnlockPlayed: (doneCount: number) => void;
   onSelect: (techniqueId: string) => void;
 }
 
@@ -39,6 +47,8 @@ export interface PathBoardProps {
 export const PathBoard = memo(function PathBoard({
   techniques,
   goal,
+  seenDone,
+  onUnlockPlayed,
   onSelect,
 }: PathBoardProps) {
   const reduceMotion = useReduceMotion();
@@ -54,9 +64,16 @@ export const PathBoard = memo(function PathBoard({
   const doneCount = techniques.filter((technique) => technique.status === 'completed').length;
   const activeIndex = techniques.findIndex((technique) => technique.status === 'active');
 
-  const { trail, entrance, playing } = useUnlockSequence(
-    trailProgress(lengths, total, doneCount),
-  );
+  const played = useCallback(() => onUnlockPlayed(doneCount), [onUnlockPlayed, doneCount]);
+  const { trail, entrance, playing } = useUnlockSequence({
+    progress: trailProgress(lengths, total, doneCount),
+    // Only a genuine advance animates. Anything else settles.
+    from:
+      seenDone !== null && seenDone < doneCount
+        ? trailProgress(lengths, total, seenDone)
+        : null,
+    onPlayed: played,
+  });
 
   const trailProps = useAnimatedProps(() => ({
     strokeDashoffset: total * (1 - trail.value),
@@ -154,7 +171,8 @@ export const PathBoard = memo(function PathBoard({
         const technique = techniques[item.index];
         const status = statusOf(technique.status);
         const isRight = item.x > board.width / 2;
-        // Only the disc that just became reachable plays the entrance.
+        // Only the disc that just became reachable plays the entrance, and
+        // only while an unlock is actually running.
         const arriving = item.index === activeIndex && !reduceMotion;
 
         return (

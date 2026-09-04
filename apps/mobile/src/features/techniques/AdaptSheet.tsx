@@ -3,6 +3,7 @@ import type { Technique } from '@reps/core';
 import { ActionSheet, Button, PipMascot, Text, space } from '@reps/ui';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { usePathCache } from '../paths/path-cache';
 import { useApp } from '../../providers/app-provider';
 
 export type AdaptAction = 'too_hard' | 'skip';
@@ -25,6 +26,7 @@ export interface AdaptSheetProps {
  */
 export function AdaptSheet({ action, technique, onClose, onDone }: AdaptSheetProps) {
   const { api } = useApp();
+  const { applyPath } = usePathCache();
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
 
@@ -36,8 +38,13 @@ export function AdaptSheet({ action, technique, onClose, onDone }: AdaptSheetPro
     setWorking(true);
     setError(null);
     try {
-      if (action === 'too_hard') await api.markTooHard(technique.id);
-      else await api.skipTechnique(technique.id);
+      // Both endpoints answer with the rebuilt path, so the cache is updated
+      // rather than invalidated - the board redraws from what we were handed.
+      const rebuilt =
+        action === 'too_hard'
+          ? await api.markTooHard(technique.id)
+          : await api.skipTechnique(technique.id);
+      applyPath(rebuilt);
 
       onDone();
     } catch (caught) {

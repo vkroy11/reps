@@ -8,6 +8,7 @@ import { BoardSkeleton } from '../../features/path/BoardSkeleton';
 import { PathBoard } from '../../features/path/PathBoard';
 import { StartSheet } from '../../features/paths/StartSheet';
 import { TechniqueBrief } from '../../features/paths/TechniqueBrief';
+import { usePathCache } from '../../features/paths/path-cache';
 import { usePath, usePathList } from '../../features/paths/usePaths';
 
 /**
@@ -32,6 +33,7 @@ export default function PathScreen() {
   const { isWide } = useBreakpoint();
   const { focusedId, paths, loading: listLoading } = usePathList();
   const { path, loading } = usePath(focusedId);
+  const { seenDone, markSeen } = usePathCache();
   const [openId, setOpenId] = useState<string | null>(null);
 
   const summary = paths.find((item) => item.id === focusedId) ?? null;
@@ -100,6 +102,8 @@ export default function PathScreen() {
         <PathBoard
           techniques={path.techniques}
           goal={path.goal}
+          seenDone={seenDone(path.id)}
+          onUnlockPlayed={(doneCount) => markSeen(path.id, doneCount)}
           onSelect={(techniqueId) =>
             // On a phone a second tap on the open node would reopen the sheet;
             // in the pane it should toggle the selection off.

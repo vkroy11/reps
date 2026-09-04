@@ -14,6 +14,7 @@ import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { FrameMeter } from '../features/dev/FrameMeter';
+import { PathCacheProvider } from '../features/paths/path-cache';
 import { AppProvider } from '../providers/app-provider';
 
 // Held until the fonts resolve so text never reflows on first paint - the
@@ -39,25 +40,29 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>
         <AppProvider>
-          {/*
+          {/* Inside AppProvider because it needs the API client, and above the
+              navigator so every screen reads the same cache. */}
+          <PathCacheProvider>
+            {/*
             Keyboard avoidance is per screen, not here. A KeyboardAvoidingView
             around the navigator pads a container the screens are laid out
             inside, so nothing they render ever reflows - see KeyboardAvoider.
           */}
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: color.surfacePage },
-            }}
-          />
-          {/*
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: color.surfacePage },
+              }}
+            />
+            {/*
             Above the navigator so it floats over every screen, and only in
             development. FPS has to be read on real hardware - a simulator
             renders in software and the browser runs Reanimated through a
             different path, so neither gives a number worth quoting.
           */}
-          {__DEV__ ? <FrameMeter /> : null}
-          <StatusBar style="dark" />
+            {__DEV__ ? <FrameMeter /> : null}
+            <StatusBar style="dark" />
+          </PathCacheProvider>
         </AppProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

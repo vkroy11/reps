@@ -9,6 +9,7 @@ import { BackIcon } from '../../components/icons';
 import { LevelUpCelebration } from '../../features/practice/LevelUpCelebration';
 import { PracticeTimer } from '../../features/practice/PracticeTimer';
 import { ReflectStep } from '../../features/practice/ReflectStep';
+import { usePathCache } from '../../features/paths/path-cache';
 import { useTechnique } from '../../features/techniques/useTechnique';
 import { useApp } from '../../providers/app-provider';
 
@@ -28,6 +29,7 @@ export default function PracticeScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { api } = useApp();
+  const { applyPath } = usePathCache();
   const { technique, loading } = useTechnique(id ?? null);
 
   const [stage, setStage] = useState<Stage>('timing');
@@ -44,6 +46,16 @@ export default function PracticeScreen() {
     try {
       const reflected = await api.reflect(id, { confidence, practiceMinutes: minutes });
       setResult(reflected);
+
+      /*
+        Into the shared cache immediately, before any navigation.
+
+        This is the fix for the board showing pre-completion state: the Path
+        tab stays mounted, so it will never refetch on its own. Handing it the
+        path we were just given also means the unlock animation has something
+        to animate *to*, while the cache still remembers what was last shown.
+      */
+      applyPath(reflected.path);
 
       // Only a completion is worth a celebration. "Getting there" and
       // "struggling" go straight back, because nothing was unlocked and
@@ -146,8 +158,9 @@ export default function PracticeScreen() {
           badge={result.awarded.badge}
           nextTitle={next?.title ?? null}
           onContinue={() => {
-            // Dismissed to the board, where the trail is about to travel to the
-            // node this just unlocked.
+            // Pops this session (and the technique screen, if it was opened
+            // from there) back to the tabs, then lands on the board - where the
+            // trail is about to travel to the node this just unlocked.
             router.dismissAll();
             router.replace('/(tabs)/path');
           }}
