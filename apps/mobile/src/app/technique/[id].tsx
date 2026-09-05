@@ -29,18 +29,22 @@ export default function TechniqueScreen() {
   const { id, seek } = useLocalSearchParams<{ id: string; seek?: string }>();
 
   const { technique, error, loading, reload } = useTechnique(id ?? null);
-  const { content, loading: contentLoading, error: contentError, load } = useTechniqueContent(
-    id ?? null,
-  );
+  const {
+    content,
+    loading: contentLoading,
+    error: contentError,
+    load,
+  } = useTechniqueContent(id ?? null);
   const { notes, add, edit } = useTechniqueNotes(id ?? null);
 
   // Reading the player position through a ref keeps progress out of state, so
   // opening the composer does not re-render the player.
   const readPosition = useRef<(() => number) | null>(null);
   const seekRef = useRef<((seconds: number) => void) | null>(null);
-  const [composer, setComposer] = useState<{ timestampSec: number | null; note: Note | null } | null>(
-    null,
-  );
+  const [composer, setComposer] = useState<{
+    timestampSec: number | null;
+    note: Note | null;
+  } | null>(null);
   const [adapt, setAdapt] = useState<'too_hard' | 'skip' | null>(null);
 
   const primaryResource = technique?.resources[0] ?? null;
@@ -166,9 +170,16 @@ export default function TechniqueScreen() {
               </>
             ) : (
               <Card style={styles.noResource}>
+                {/*
+                  Recall techniques do get a lesson now, so "it's a flashcards
+                  technique" is no longer the reason one is missing - it means
+                  the search found nothing usable. Saying that plainly beats
+                  explaining a rule that no longer applies.
+                */}
                 <Text variant="caption" tone="textSecondary">
-                  No video for this one — it’s a {technique.modality.replace(/_/g, ' ')} technique,
-                  so the practice below is the lesson.
+                  {technique.modality === 'flashcards'
+                    ? 'No lesson found for this one yet — the deck below is the practice. Reps will look again next time you open it.'
+                    : `Nothing worth watching for this one — it’s a ${technique.modality.replace(/_/g, ' ')} technique, so the practice below is the lesson.`}
                 </Text>
               </Card>
             )}
@@ -215,12 +226,7 @@ export default function TechniqueScreen() {
                 <Text variant="caption" tone="textSecondary">
                   Couldn’t generate the drill. {contentError.message}
                 </Text>
-                <Button
-                  label="Try again"
-                  variant="secondary"
-                  onPress={load}
-                  style={styles.retry}
-                />
+                <Button label="Try again" variant="secondary" onPress={load} style={styles.retry} />
               </Card>
             ) : null}
 
