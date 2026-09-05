@@ -15,6 +15,7 @@ import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { FrameMeter } from '../features/dev/FrameMeter';
+import { NotebookCacheProvider } from '../features/notes/notebook-cache';
 import { PathCacheProvider } from '../features/paths/path-cache';
 import { PracticeHistoryProvider } from '../features/progress/practice-history';
 import { AppProvider } from '../providers/app-provider';
@@ -61,25 +62,27 @@ export default function RootLayout() {
               navigator so every screen reads the same cache. */}
           <PathCacheProvider>
             <PracticeHistoryProvider>
-              {/*
+              <NotebookCacheProvider>
+                {/*
             Keyboard avoidance is per screen, not here. A KeyboardAvoidingView
             around the navigator pads a container the screens are laid out
             inside, so nothing they render ever reflows - see KeyboardAvoider.
           */}
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: color.surfacePage },
-                }}
-              />
-              {/*
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: color.surfacePage },
+                  }}
+                />
+                {/*
             Above the navigator so it floats over every screen, and only in
             development. FPS has to be read on real hardware - a simulator
             renders in software and the browser runs Reanimated through a
             different path, so neither gives a number worth quoting.
           */}
-              {__DEV__ ? <FrameMeter /> : null}
-              <StatusBar style="dark" />
+                {__DEV__ ? <FrameMeter /> : null}
+                <StatusBar style="dark" />
+              </NotebookCacheProvider>
             </PracticeHistoryProvider>
           </PathCacheProvider>
         </AppProvider>

@@ -9,8 +9,14 @@ import { usePracticeHistory, useWeek } from '../src/features/progress/useStreak'
 
 const mockPracticeHistory = jest.fn<Promise<PracticeEntry[]>, []>();
 
+let mockSession: { userId: string } | null = null;
+
 jest.mock('../src/providers/app-provider', () => ({
-  useApp: () => ({ api: { practiceHistory: mockPracticeHistory }, ready: true }),
+  useApp: () => ({
+    api: { practiceHistory: mockPracticeHistory },
+    ready: true,
+    session: mockSession,
+  }),
 }));
 
 function entryDaysAgo(back: number, minutes = 20, confidence: Confidence = 'solid'): PracticeEntry {
@@ -42,6 +48,42 @@ describe('practice history', () => {
   beforeEach(() => {
     mockPracticeHistory.mockReset();
     mockPracticeHistory.mockResolvedValue([entryDaysAgo(1), entryDaysAgo(3)]);
+    mockSession = null;
+  });
+
+  /**
+   * Signing in makes this device speak for a different learner, whose practice
+   * may have happened on another device entirely. Held data belongs to
+   * somebody else, so it is dropped and re-read - exactly once, not once per
+   * effect that happens to re-run as the cache settles.
+   */
+  describe('when the learner signs in', () => {
+    it("drops the previous learner's history and re-reads, once", async () => {
+      const view = await renderHook(() => usePracticeHistory(), { wrapper });
+
+      await waitFor(() => expect(view.result.current.entries).toHaveLength(2));
+
+      mockPracticeHistory.mockResolvedValue([entryDaysAgo(0), entryDaysAgo(2), entryDaysAgo(4)]);
+      mockSession = { userId: 'usr_signed_in' };
+      await act(async () => view.rerender({}));
+
+      await waitFor(() => expect(view.result.current.entries).toHaveLength(3));
+      expect(mockPracticeHistory).toHaveBeenCalledTimes(2);
+    });
+
+    it('re-reads again on sign-out, because the device is anonymous now', async () => {
+      mockSession = { userId: 'usr_signed_in' };
+      const view = await renderHook(() => usePracticeHistory(), { wrapper });
+
+      await waitFor(() => expect(view.result.current.entries).toHaveLength(2));
+
+      mockPracticeHistory.mockResolvedValue([]);
+      mockSession = null;
+      await act(async () => view.rerender({}));
+
+      await waitFor(() => expect(view.result.current.entries).toHaveLength(0));
+      expect(mockPracticeHistory).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('fetches once however many screens ask for it', async () => {
