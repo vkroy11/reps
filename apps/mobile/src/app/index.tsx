@@ -3,6 +3,7 @@ import { Button, PipLogo, Text, color, space } from '@reps/ui';
 import { Link, Redirect, useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SignInPrompt } from '../features/auth/SignInPrompt';
 import { useApp } from '../providers/app-provider';
 
 /**
@@ -38,7 +39,8 @@ export default function WelcomeScreen() {
           Get good at one thing at a time.
         </Text>
         <Text variant="body" tone="textSecondary" center>
-        Tell Reps what you want to be able to do. It builds five to eight techniques and tracks practice until you can do the thing.
+          Tell Reps what you want to be able to do. It builds five to eight techniques and tracks
+          practice until you can do the thing.
         </Text>
       </View>
 
@@ -68,6 +70,14 @@ export default function WelcomeScreen() {
             testID="get-started"
           />
         )}
+
+        {/*
+          The screen a returning learner actually lands on. Sign-in used to be
+          only on Today's empty state, which is behind onboarding - so the one
+          group who needs it, somebody with an account and a new device, could
+          not reach it without first building a hobby they did not want.
+        */}
+        <SignInPrompt />
 
         {__DEV__ ? (
           <Link href="/gallery" style={styles.devLink}>
