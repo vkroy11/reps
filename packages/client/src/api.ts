@@ -400,21 +400,21 @@ export function createApiClient({
       return entries;
     },
 
-    async createNote(input: CreateNoteRequest): Promise<Note> {
+    async createNote(input: CreateNoteRequest): Promise<NoteWithContext> {
       const { note } = await request('/api/notes', {
         method: 'POST',
         body: input,
-        schema: z.object({ note: NoteSchema }),
+        schema: z.object({ note: NoteWithContextSchema }),
       });
 
       return note;
     },
 
-    async updateNote(noteId: string, body: string): Promise<Note> {
+    async updateNote(noteId: string, body: string): Promise<NoteWithContext> {
       const { note } = await request(`/api/notes/${noteId}`, {
         method: 'PATCH',
         body: { body },
-        schema: z.object({ note: NoteSchema }),
+        schema: z.object({ note: NoteWithContextSchema }),
       });
 
       return note;

@@ -20,13 +20,22 @@ export function createNoteService(deps: {
     return note;
   }
 
+  /** What the notebook needs beyond the note itself. */
+  function withContext(
+    note: Note,
+    path: { id: string; skill: string },
+    technique: { title: string },
+  ): NoteWithContext {
+    return { ...note, pathId: path.id, skill: path.skill, techniqueTitle: technique.title };
+  }
+
   return {
     /**
      * Notes hang off a technique, so the technique's ownership is checked
      * first: that also stops a note being attached to someone else's path.
      */
-    async create(userId: string, input: CreateNoteRequest): Promise<Note> {
-      const { technique } = await deps.techniques.locate(userId, input.techniqueId);
+    async create(userId: string, input: CreateNoteRequest): Promise<NoteWithContext> {
+      const { path, technique } = await deps.techniques.locate(userId, input.techniqueId);
 
       // A timestamp only means something against a specific resource.
       const resourceId =
@@ -36,7 +45,7 @@ export function createNoteService(deps: {
 
       const now = new Date().toISOString();
 
-      return deps.repositories.notes.create({
+      const note = await deps.repositories.notes.create({
         id: newId('note'),
         userId,
         techniqueId: technique.id,
@@ -46,6 +55,17 @@ export function createNoteService(deps: {
         createdAt: now,
         updatedAt: now,
       });
+
+      /*
+        Answered with its context, not as a bare Note.
+
+        The notebook lists notes across every path, so it needs the technique
+        and skill they belong to. Leaving the client to supply that meant a
+        caller could simply not - and one did, silently, which is how a written
+        note updated the technique screen and nothing else. The service already
+        holds both from the ownership check above.
+      */
+      return withContext(note, path, technique);
     },
 
     async listForTechnique(userId: string, techniqueId: string): Promise<Note[]> {
@@ -60,10 +80,15 @@ export function createNoteService(deps: {
       return deps.repositories.notes.listByUser(userId);
     },
 
-    async update(userId: string, noteId: string, body: string): Promise<Note> {
-      await locateOwned(userId, noteId);
+    async update(userId: string, noteId: string, body: string): Promise<NoteWithContext> {
+      const owned = await locateOwned(userId, noteId);
+      const { path, technique } = await deps.techniques.locate(userId, owned.techniqueId);
 
-      return deps.repositories.notes.update(noteId, body.trim());
+      return withContext(
+        await deps.repositories.notes.update(noteId, body.trim()),
+        path,
+        technique,
+      );
     },
 
     async remove(userId: string, noteId: string): Promise<void> {

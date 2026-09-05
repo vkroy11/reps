@@ -1,4 +1,4 @@
-import type { Note, NoteWithContext } from '@reps/core';
+import type { NoteWithContext } from '@reps/core';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 import { NotebookCacheProvider, useNotebookCache } from '../src/features/notes/notebook-cache';
@@ -30,8 +30,6 @@ function note(overrides: Partial<NoteWithContext> & { id: string }): NoteWithCon
     ...overrides,
   };
 }
-
-const CONTEXT = { techniqueTitle: 'Chord transitions', pathId: 'path_guitar', skill: 'guitar' };
 
 function wrapper({ children }: { children: ReactNode }) {
   return <NotebookCacheProvider>{children}</NotebookCacheProvider>;
@@ -73,8 +71,8 @@ describe('notebook cache', () => {
 
       await waitFor(() => expect(view.result.current.read.notes).toHaveLength(2));
 
-      const created: Note = { ...note({ id: 'n3', body: 'New thought' }) };
-      await act(async () => view.result.current.cache.applyNote(created, CONTEXT));
+      const created = note({ id: 'n3', body: 'New thought' });
+      await act(async () => view.result.current.cache.applyNote(created));
 
       expect(view.result.current.read.notes).toHaveLength(3);
       expect(view.result.current.read.notes[0]?.body).toBe('New thought');
@@ -89,7 +87,7 @@ describe('notebook cache', () => {
       await waitFor(() => expect(view.result.current.read.notes).toHaveLength(2));
 
       await act(async () =>
-        view.result.current.cache.applyNote(note({ id: 'n1', body: 'Revised' }), CONTEXT),
+        view.result.current.cache.applyNote(note({ id: 'n1', body: 'Revised' })),
       );
 
       expect(view.result.current.read.notes).toHaveLength(2);

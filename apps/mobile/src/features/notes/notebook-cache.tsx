@@ -1,5 +1,5 @@
 import { ApiError } from '@reps/client';
-import type { Note, NoteWithContext } from '@reps/core';
+import type { NoteWithContext } from '@reps/core';
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useApp } from '../../providers/app-provider';
@@ -11,20 +11,13 @@ function toApiError(caught: unknown): ApiError {
     : new ApiError('UnexpectedResponse', (caught as Error).message);
 }
 
-/** What a bare Note is missing before the notebook can list it. */
-export interface NoteContext {
-  techniqueTitle: string;
-  pathId: string;
-  skill: string;
-}
-
 interface NotebookCacheValue {
   notes: NoteWithContext[] | null;
   error: ApiError | null;
   ensureNotes: () => void;
   refresh: () => void;
   /** Folds a note written elsewhere in, without a refetch. */
-  applyNote: (note: Note, context: NoteContext) => void;
+  applyNote: (note: NoteWithContext) => void;
   removeNote: (noteId: string) => void;
 }
 
@@ -73,20 +66,18 @@ export function NotebookCacheProvider({ children }: { children: ReactNode }) {
   );
 
   /*
-    The write endpoints answer with a bare Note; the notebook needs the
-    technique it belongs to as well. The caller has that on screen already, so
-    it supplies it rather than the cache refetching to learn something it was
-    just told.
+    The write endpoints answer with the note *and* the technique and skill it
+    belongs to, so the notebook can list it without refetching to learn
+    something it was just told - and without a caller having to remember to
+    supply context, which is exactly what went wrong before.
   */
-  const applyNote = useCallback((note: Note, context: NoteContext) => {
+  const applyNote = useCallback((note: NoteWithContext) => {
     setNotes((current) => {
       if (current === null) return current;
 
-      const merged: NoteWithContext = { ...note, ...context };
-      const existing = current.findIndex((item) => item.id === note.id);
-      if (existing === -1) return [merged, ...current];
-
-      return current.map((item) => (item.id === note.id ? { ...item, ...note } : item));
+      return current.some((item) => item.id === note.id)
+        ? current.map((item) => (item.id === note.id ? note : item))
+        : [note, ...current];
     });
   }, []);
 

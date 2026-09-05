@@ -116,7 +116,27 @@ export default function TechniqueScreen() {
           </Card>
         ) : null}
 
-        {technique ? (
+        {/*
+          The choke point for the gate.
+
+          Locked techniques are reachable by id from several places - the saved
+          shelf, a note, a deep link - and each of those guarding itself is a
+          rule waiting to be forgotten. Refusing here means the gate holds
+          however the learner arrived, and it explains rather than bouncing
+          them to a technique they did not ask for.
+        */}
+        {technique?.status === 'locked' ? (
+          <Card style={styles.locked}>
+            <Text variant="heading">{technique.title}</Text>
+            <Text variant="body" tone="textSecondary" style={styles.gap}>
+              This one is still locked. The order is the point — it assumes the techniques before
+              it, so doing it now would be practising against something you have not built yet.
+            </Text>
+            <Button label="Back to the path" onPress={() => router.back()} testID="locked-back" />
+          </Card>
+        ) : null}
+
+        {technique && technique.status !== 'locked' ? (
           <>
             <Text variant="overline" tone="textSecondary">
               {technique.modality.replace(/_/g, ' ')} · {technique.estimatedMinutes} min
@@ -415,6 +435,7 @@ const styles = StyleSheet.create({
   },
   label: { marginTop: space.base },
   gap: { marginTop: space.sm },
+  locked: { marginTop: space.base },
   resourceTitle: { marginTop: space.sm },
   reason: { marginTop: space.xs, marginBottom: space.sm },
   addNote: { marginTop: space.sm },

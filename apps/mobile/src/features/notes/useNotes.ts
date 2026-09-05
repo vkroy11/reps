@@ -1,7 +1,7 @@
 import { ApiError } from '@reps/client';
 import type { CreateNoteRequest, Note, NoteWithContext } from '@reps/core';
 import { useCallback, useEffect, useState } from 'react';
-import { useNotebookCache, type NoteContext } from './notebook-cache';
+import { useNotebookCache } from './notebook-cache';
 import { useApp } from '../../providers/app-provider';
 
 function toApiError(caught: unknown): ApiError {
@@ -27,16 +27,7 @@ interface TechniqueNotesState {
  * and whether a timestamp was accepted at all, so re-reading keeps the screen
  * honest about what was actually stored.
  */
-export function useTechniqueNotes(
-  techniqueId: string | null,
-  /**
-   * What the shared notebook needs that a bare Note lacks. Optional because
-   * the caller may not have the technique loaded yet; without it the write
-   * still succeeds, it just does not reach the other mounted tabs until they
-   * refetch.
-   */
-  context?: NoteContext,
-): TechniqueNotesState {
+export function useTechniqueNotes(techniqueId: string | null): TechniqueNotesState {
   const { applyNote, removeNote } = useNotebookCache();
   const { api, ready } = useApp();
   const [notes, setNotes] = useState<Note[] | null>(null);
@@ -72,10 +63,11 @@ export function useTechniqueNotes(
       const created = await api.createNote({ ...input, techniqueId });
       refresh();
       // And into the shared notebook, so Today and the Notes tab - both
-      // mounted, neither about to refetch - show it too.
-      if (context) applyNote(created, context);
+      // mounted, neither about to refetch - show it too. The response carries
+      // its own context, so there is nothing for a caller to forget.
+      applyNote(created);
     },
-    [api, techniqueId, refresh, applyNote, context],
+    [api, techniqueId, refresh, applyNote],
   );
 
   const edit = useCallback(
@@ -84,9 +76,9 @@ export function useTechniqueNotes(
 
       const updated = await api.updateNote(noteId, body);
       refresh();
-      if (context) applyNote(updated, context);
+      applyNote(updated);
     },
-    [api, refresh, applyNote, context],
+    [api, refresh, applyNote],
   );
 
   const remove = useCallback(

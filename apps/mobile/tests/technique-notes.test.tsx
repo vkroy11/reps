@@ -283,4 +283,30 @@ describe('TechniqueScreen notes', () => {
       expect(getByText(/Nothing worth watching for this one/)).toBeOnTheScreen();
     });
   });
+
+  /**
+   * The gate has to hold however the learner arrived. A locked technique is
+   * reachable by id from the saved shelf, a note, or a deep link, and each of
+   * those guarding itself is a rule waiting to be forgotten.
+   */
+  describe('a technique that is still locked', () => {
+    beforeEach(() => {
+      mockTechnique = { ...baseTechnique([resource]), status: 'locked' };
+    });
+
+    it('refuses to open it, and says why', async () => {
+      const { getByText, getByTestId } = await renderScreen(<TechniqueScreen />);
+
+      expect(getByText(/still locked/)).toBeOnTheScreen();
+      expect(getByTestId('locked-back')).toBeOnTheScreen();
+    });
+
+    it('shows no player, no practice and no way to start', async () => {
+      const { queryByTestId, queryByText } = await renderScreen(<TechniqueScreen />);
+
+      expect(queryByTestId('add-timestamped-note')).toBeNull();
+      expect(queryByText('Practice')).toBeNull();
+      expect(queryByText('My notes')).toBeNull();
+    });
+  });
 });
