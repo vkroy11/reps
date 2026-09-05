@@ -19,7 +19,14 @@ const MODALITY_BY_ARCHETYPE: Record<SkillArchetype, Modality> = {
 const FORMATS_BY_MODALITY: Record<Modality, readonly ContentFormat[]> = {
   watch_and_do: ['video', 'drill'],
   drill: ['drill', 'article', 'ai_lesson'],
-  flashcards: ['flashcards', 'ai_lesson'],
+  /*
+    Video is here so a recall technique gets a lesson before the deck. Cards
+    test whether you know something; they do not teach it, and a learner
+    dropped straight into "what is the zero value of a string" has been given
+    an exam, not a lesson. The curator only searches when video is listed, so
+    without it a flashcards technique had no resources at all.
+  */
+  flashcards: ['flashcards', 'video', 'ai_lesson'],
   produce_and_critique: ['drill', 'article', 'video'],
 };
 

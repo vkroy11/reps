@@ -28,7 +28,15 @@ describe('resolveFormats', () => {
   });
 
   it('falls back to the modality default when nothing is preferred', () => {
-    expect(resolveFormats('flashcards', [])).toEqual(['flashcards', 'ai_lesson']);
+    expect(resolveFormats('flashcards', [])).toEqual(['flashcards', 'video', 'ai_lesson']);
+  });
+
+  /**
+   * Cards test whether you know something; they do not teach it. A recall
+   * technique that sourced no lesson dropped the learner straight into an exam.
+   */
+  it('lets a recall technique source a lesson to go with the deck', () => {
+    expect(resolveFormats('flashcards', [])).toContain('video');
   });
 });
 
@@ -49,9 +57,15 @@ describe('explainModalityOverride', () => {
   });
 
   it('explains a non-passive mismatch more generally', () => {
-    expect(explainModalityOverride('Opening traps', 'flashcards', ['video'])).toContain(
+    // Drill, not video: a recall technique now carries a video lesson, so
+    // video is no longer an override there.
+    expect(explainModalityOverride('Opening traps', 'flashcards', ['drill'])).toContain(
       'different format',
     );
+  });
+
+  it('stays quiet about video on a recall technique, which now carries one', () => {
+    expect(explainModalityOverride('Opening traps', 'flashcards', ['video'])).toBeNull();
   });
 });
 
