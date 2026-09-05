@@ -12,6 +12,7 @@ import { PracticeTimer } from '../../features/practice/PracticeTimer';
 import { ReflectStep } from '../../features/practice/ReflectStep';
 import { SessionInstructions } from '../../features/practice/SessionInstructions';
 import { usePathCache } from '../../features/paths/path-cache';
+import { usePracticeHistoryCache } from '../../features/progress/practice-history';
 import { useTechnique, useTechniqueContent } from '../../features/techniques/useTechnique';
 import { useApp } from '../../providers/app-provider';
 
@@ -32,6 +33,7 @@ export default function PracticeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { api } = useApp();
   const { applyPath } = usePathCache();
+  const { applyEntry } = usePracticeHistoryCache();
   const { technique, loading } = useTechnique(id ?? null);
   /*
     The written instructions, fetched alongside the technique rather than on
@@ -64,6 +66,22 @@ export default function PracticeScreen() {
         to animate *to*, while the cache still remembers what was last shown.
       */
       applyPath(reflected.path);
+
+      /*
+        And the session itself, so the week chart and the heatmap move with the
+        board. The award is what the server actually credited, and the moment
+        is now - so this is the same row the history endpoint would return,
+        without making the learner wait for a round trip to see their own
+        practice appear.
+      */
+      applyEntry({
+        at: new Date().toISOString(),
+        minutes: reflected.awarded.minutes,
+        xp: reflected.awarded.xp,
+        pathId: reflected.path.id,
+        techniqueId: id,
+        confidence,
+      });
 
       // Only a completion is worth a celebration. "Getting there" and
       // "struggling" go straight back, because nothing was unlocked and

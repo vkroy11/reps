@@ -7,8 +7,8 @@ import {
   type StreakState,
   type WeekDay,
 } from '@reps/core';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useApp } from '../../providers/app-provider';
+import { useEffect, useMemo } from 'react';
+import { usePracticeHistoryCache } from './practice-history';
 
 interface HistoryState {
   entries: PracticeEntry[];
@@ -28,54 +28,30 @@ const EMPTY_STREAK: StreakState = {
 /**
  * Practice history, and the streak derived from it.
  *
+ * A reader over the shared cache rather than its own fetch: Today and the
+ * profile both ask for this, and a session finished on the practice screen has
+ * to be visible on both without a reload.
+ *
  * The derivation happens here rather than on the server because it depends on
  * this device's calendar - see packages/core/src/streak.ts. `today()` is read
  * during the memo, so an app left open past midnight shows the new day on its
  * next render rather than holding yesterday's answer forever.
  */
 export function usePracticeHistory(): HistoryState {
-  const { api, ready } = useApp();
-  const [entries, setEntries] = useState<PracticeEntry[] | null>(null);
-  const [error, setError] = useState<ApiError | null>(null);
-  const [attempt, setAttempt] = useState(0);
+  const { entries, error, ensureHistory, refresh } = usePracticeHistoryCache();
 
   useEffect(() => {
-    if (!ready || !api) return;
+    ensureHistory();
+  }, [ensureHistory]);
 
-    let active = true;
-    setError(null);
-
-    api
-      .practiceHistory()
-      .then((result) => {
-        if (active) setEntries(result);
-      })
-      .catch((caught: unknown) => {
-        if (!active) return;
-
-        setError(
-          caught instanceof ApiError
-            ? caught
-            : new ApiError('UnexpectedResponse', (caught as Error).message),
-        );
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [api, ready, attempt]);
-
-  const streak = useMemo(
-    () => (entries ? streakFrom(entries, today()) : EMPTY_STREAK),
-    [entries],
-  );
+  const streak = useMemo(() => (entries ? streakFrom(entries, today()) : EMPTY_STREAK), [entries]);
 
   return {
     entries: entries ?? [],
     streak,
     error,
     loading: entries === null && error === null,
-    reload: useCallback(() => setAttempt((value) => value + 1), []),
+    reload: refresh,
   };
 }
 
