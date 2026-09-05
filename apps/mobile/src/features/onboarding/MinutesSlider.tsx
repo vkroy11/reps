@@ -66,12 +66,12 @@ export function MinutesSlider({ value, onChange, panel }: MinutesSliderProps) {
     // move the value rather than waiting for a drag to be recognised.
     .minDistance(0)
     .onBegin((event) => {
-      grabbed.value = withSpring(1);
+      grabbed.value = reduceMotion ? 1 : withSpring(1);
       track(event);
     })
     .onUpdate(track)
     .onFinalize(() => {
-      grabbed.value = withSpring(0);
+      grabbed.value = reduceMotion ? 0 : withSpring(0);
       // Settle onto the step that was reported, so the thumb and the big
       // number never disagree by a few pixels.
       const snapped = toRatio(reported.value);

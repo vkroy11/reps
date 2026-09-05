@@ -80,13 +80,21 @@ describe('XP for a session', () => {
    * - and confidence is the only signal the adaptation engine reads.
    */
   it('cannot be influenced by confidence, because confidence is not an input', () => {
-    const signature = xpForSession.length;
+    /*
+      Called, not inspected. This assertion used to check `xpForSession.length`
+      and then the keys of an object literal written on the line above - a
+      tautology that would have stayed green while "solid" paid double.
+    */
+    const award = (confidence: string) =>
+      (xpForSession as (input: Record<string, unknown>) => number)({
+        minutes: 20,
+        firstReflection: true,
+        confidence,
+      });
 
-    expect(signature).toBe(1);
-    expect(Object.keys({ minutes: 0, firstReflection: false })).toEqual([
-      'minutes',
-      'firstReflection',
-    ]);
+    expect(award('solid')).toBe(award('struggling'));
+    expect(award('solid')).toBe(award('getting_there'));
+    expect(award('solid')).toBe(xpForSession({ minutes: 20, firstReflection: true }));
   });
 });
 

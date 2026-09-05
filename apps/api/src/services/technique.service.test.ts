@@ -133,7 +133,14 @@ describe('technique service', () => {
       // Everything after the rejected technique is new.
       const originalTailIds = path.techniques.slice(2).map((technique) => technique.id);
       const survivingTailIds = updated.techniques.slice(2).map((technique) => technique.id);
-      expect(survivingTailIds).not.toEqual(expect.arrayContaining(originalTailIds));
+      /*
+        Every original id must be gone, not merely "not all of them present".
+        `not.toEqual(arrayContaining(...))` only fails when the whole original
+        tail survives, so one leftover locked step passed.
+      */
+      for (const originalId of originalTailIds) {
+        expect(survivingTailIds).not.toContain(originalId);
+      }
     });
 
     it('activates a replacement when the skipped technique was the active one', async () => {
@@ -159,7 +166,7 @@ describe('technique service', () => {
   });
 
   describe('ownership', () => {
-    it('reports another user\'s technique as missing', async () => {
+    it("reports another user's technique as missing", async () => {
       await expect(
         services.techniques.reflect('usr_someone_else', techniqueAt(path, 0).id, {
           confidence: 'solid',
