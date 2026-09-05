@@ -2,7 +2,7 @@ import { formatTimestamp } from '@reps/client';
 import { Button, ProgressRing, Text, color, space } from '@reps/ui';
 import Pause from 'lucide-react-native/icons/pause';
 import Play from 'lucide-react-native/icons/play';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 export interface PracticeTimerProps {
@@ -10,6 +10,14 @@ export interface PracticeTimerProps {
   targetMinutes: number;
   /** Called with whole minutes practised when the learner finishes. */
   onDone: (minutes: number) => void;
+  /**
+   * Filled with a reader for the minutes practised so far.
+   *
+   * A ref rather than a prop callback: the deck finishing has to end the
+   * session with the right minutes, and the session must not re-render once a
+   * second to know what they are.
+   */
+  elapsedRef?: MutableRefObject<(() => number) | null>;
 }
 
 /**
@@ -25,12 +33,32 @@ export interface PracticeTimerProps {
  * suspended - resumes with the right number instead of however many ticks the
  * OS allowed.
  */
-export function PracticeTimer({ targetMinutes, onDone }: PracticeTimerProps) {
+export function PracticeTimer({ targetMinutes, onDone, elapsedRef }: PracticeTimerProps) {
   const [running, setRunning] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   /** Accumulated seconds from previous run stretches. */
   const bankedRef = useRef(0);
   const startedAtRef = useRef(Date.now());
+
+  // Read from the same wall-clock delta the display uses, so a caller can ask
+  // at any moment without waiting for the next tick.
+  const minutesNow = useCallback(
+    () =>
+      Math.floor(
+        (bankedRef.current + (running ? (Date.now() - startedAtRef.current) / 1000 : 0)) / 60,
+      ),
+    [running],
+  );
+
+  useEffect(() => {
+    if (!elapsedRef) return;
+
+    elapsedRef.current = minutesNow;
+
+    return () => {
+      elapsedRef.current = null;
+    };
+  }, [elapsedRef, minutesNow]);
 
   useEffect(() => {
     if (!running) return;

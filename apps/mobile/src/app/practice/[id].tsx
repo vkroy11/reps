@@ -2,7 +2,7 @@ import { ApiError } from '@reps/client';
 import type { Confidence, ReflectResult } from '@reps/core';
 import { Card, PipMascot, Skeleton, Text, color, radius, space } from '@reps/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackIcon } from '../../components/icons';
@@ -58,6 +58,8 @@ export default function PracticeScreen() {
   const [result, setResult] = useState<ReflectResult | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [saving, setSaving] = useState(false);
+  /** Filled by the timer, so finishing the deck can end the rep with its minutes. */
+  const elapsedRef = useRef<(() => number) | null>(null);
 
   const reflect = async (confidence: Confidence) => {
     if (!api || !id || saving) return;
@@ -158,12 +160,24 @@ export default function PracticeScreen() {
               timer - a drill is performed away from the phone, a deck is not.
             */}
             {content?.format === 'flashcards' ? (
-              <FlashcardDrill content={content} onFinished={() => undefined} />
+              /*
+                Finishing the deck ends the rep. The timer keeps the minutes
+                it earned - the reflection needs them - but the learner should
+                not have to tell the app something it just watched happen.
+              */
+              <FlashcardDrill
+                content={content}
+                onFinished={() => {
+                  setMinutes(elapsedRef.current?.() ?? 0);
+                  setStage('reflecting');
+                }}
+              />
             ) : (
               <SessionInstructions content={content} loading={contentLoading} />
             )}
 
             <PracticeTimer
+              elapsedRef={elapsedRef}
               targetMinutes={technique.estimatedMinutes}
               onDone={(practised) => {
                 setMinutes(practised);
