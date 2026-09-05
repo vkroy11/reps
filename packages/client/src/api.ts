@@ -67,8 +67,35 @@ const RETRY = {
   factor: 3,
 } as const;
 
-/** Statuses that mean the request never reached the app. */
-const RETRYABLE_STATUS = new Set([502, 503, 504]);
+/**
+ * Statuses that mean the request never reached the app.
+ *
+ * 503 and 504 only ever come from the host's router. 502 does not: the API
+ * returns it for `ProviderInvalidOutput` - a model call whose output failed
+ * its schema even after a repair attempt. Retrying that is not free, because
+ * the endpoints most likely to produce it *generate* on a GET. One bad
+ * generation would become five.
+ *
+ * So 502 is retried only when the body does not name a fault of ours.
+ */
+const RETRYABLE_STATUS = new Set([503, 504]);
+
+/** Errors the API raises that a retry cannot fix, whatever the status. */
+const NOT_A_SLEEPING_HOST = new Set(['ProviderInvalidOutput', 'ProviderUnavailable']);
+
+async function isSleepingHost(response: Response): Promise<boolean> {
+  if (RETRYABLE_STATUS.has(response.status)) return true;
+  if (response.status !== 502) return false;
+
+  // A router 502 has no JSON body; ours does, and names the error.
+  try {
+    const body = ErrorBodySchema.safeParse(await response.clone().json());
+
+    return !(body.success && NOT_A_SLEEPING_HOST.has(body.data.error));
+  } catch {
+    return true;
+  }
+}
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -151,9 +178,9 @@ export function createApiClient({
           signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS.default),
         });
 
-        // A sleeping host answers through its router, not its app, so these
-        // say "not awake yet" rather than "your request was wrong".
-        if (RETRYABLE_STATUS.has(response.status) && retryable && attempt < attempts) {
+        // A sleeping host answers through its router, not its app, so this
+        // says "not awake yet" rather than "your request was wrong".
+        if (retryable && attempt < attempts && (await isSleepingHost(response))) {
           await wait(retryDelay(attempt));
           continue;
         }
@@ -267,10 +294,18 @@ export function createApiClient({
      * One technique. The API curates its resources on first open, so this call
      * can be slower than a plain read the first time a technique is visited.
      */
+    /**
+     * Not retried, despite being a GET.
+     *
+     * The first open of a technique curates its resources - a YouTube search
+     * and a ranking call. A client timeout does not stop that work on the
+     * server, so a retry runs it a second time and spends the quota twice.
+     */
     async getTechnique(techniqueId: string): Promise<Technique> {
       const { technique } = await request(`/api/techniques/${techniqueId}`, {
         schema: z.object({ technique: TechniqueSchema }),
         timeoutMs: 30_000,
+        retry: false,
       });
 
       return technique;
@@ -293,6 +328,8 @@ export function createApiClient({
       const { content } = await request(`/api/techniques/${techniqueId}/content${query}`, {
         schema: z.object({ content: TechniqueContentSchema }),
         timeoutMs: 45_000,
+        /* Generates on the server, and `fresh` regenerates every time. */
+        retry: false,
       });
 
       return content;

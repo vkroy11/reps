@@ -223,5 +223,53 @@ describe('createApiClient', () => {
       await expect(client.suggestions('guitar')).resolves.toMatchObject({ archetype: 'motor' });
       expect(calls).toBe(2);
     });
+    /**
+     * The API returns 502 for `ProviderInvalidOutput` - a model call whose
+     * output failed its schema. That is not a sleeping host, and the endpoint
+     * that produces it generates on a GET, so retrying turns one bad
+     * generation into five.
+     */
+    it('does not retry our own 502 from a bad model response', async () => {
+      let calls = 0;
+      const client = retrying((async () => {
+        calls += 1;
+
+        return new Response(JSON.stringify({ error: 'ProviderInvalidOutput' }), { status: 502 });
+      }) as unknown as typeof fetch);
+
+      await expect(client.listPaths()).rejects.toBeInstanceOf(ApiError);
+      expect(calls).toBe(1);
+    });
+
+    /** A router 502 has no body of ours, so it still means "not awake yet". */
+    it('still retries a bodyless 502 from the host router', async () => {
+      let calls = 0;
+      const client = retrying((async () => {
+        calls += 1;
+        if (calls < 2) return new Response('<html>Bad Gateway</html>', { status: 502 });
+
+        return jsonResponse({ paths: [] });
+      }) as unknown as typeof fetch);
+
+      await expect(client.listPaths()).resolves.toEqual([]);
+      expect(calls).toBe(2);
+    });
+
+    /** Curation and generation both happen on a GET, so neither may repeat. */
+    it('never retries the two GETs that spend a model call', async () => {
+      let calls = 0;
+      const failing = (async () => {
+        calls += 1;
+        throw new TypeError('Network request failed');
+      }) as unknown as typeof fetch;
+
+      const client = retrying(failing);
+      await expect(client.getTechnique('tec_1')).rejects.toBeInstanceOf(ApiError);
+      expect(calls).toBe(1);
+
+      calls = 0;
+      await expect(client.getTechniqueContent('tec_1')).rejects.toBeInstanceOf(ApiError);
+      expect(calls).toBe(1);
+    });
   });
 });
