@@ -90,7 +90,22 @@ export function useGoogleSignIn(): {
     if (clientId === null) return;
 
     setStatus({ state: 'working' });
-    void promptAsync();
+    /*
+      promptAsync rejects rather than resolving when a browser blocks the
+      popup, which is common on mobile web. Left unhandled that was an
+      unhandled rejection and a button stuck on "Signing in..." for ever - the
+      one outcome worse than failing, because nothing tells the learner to
+      try again.
+    */
+    promptAsync().catch((error: unknown) => {
+      setStatus({
+        state: 'failed',
+        message:
+          error instanceof Error && error.message.includes('blocked')
+            ? 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.'
+            : 'Google sign-in could not be opened.',
+      });
+    });
   }, [clientId, promptAsync]);
 
   const reset = useCallback(() => {

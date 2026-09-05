@@ -9,6 +9,7 @@ import { color } from '@reps/ui';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import * as WebBrowser from 'expo-web-browser';
 import { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -20,6 +21,21 @@ import { AppProvider } from '../providers/app-provider';
 // Held until the fonts resolve so text never reflows on first paint - the
 // splash is a better wait than a visible font swap.
 void SplashScreen.preventAutoHideAsync();
+
+/*
+  Finishes a web sign-in that has just redirected back into this page.
+
+  On web the Google flow runs in a popup: the opener waits for a postMessage
+  carrying the result, and this call is what sends it. Without it the popup
+  loads the whole app at the redirect URL, renders Today, and never tells
+  anyone - so the opener waits forever and sign-in silently does nothing,
+  which is exactly how it failed.
+
+  Module scope, and in the root layout, because the popup loads whatever route
+  the redirect URL points at: this runs before the router can navigate and
+  change the URL the check is made against. A no-op on native.
+*/
+void WebBrowser.maybeCompleteAuthSession();
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
