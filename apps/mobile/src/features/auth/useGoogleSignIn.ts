@@ -1,6 +1,8 @@
 import { ApiError } from '@reps/client';
 import * as Google from 'expo-auth-session/providers/google';
+import Constants from 'expo-constants';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 import { googleClientId } from '../../lib/google-oauth';
 import { useApp } from '../../providers/app-provider';
 
@@ -24,6 +26,29 @@ export type SignInStatus =
  * the API verifies it and answers with a session of our own. We never hold a
  * Google credential beyond the moment of exchange.
  */
+/**
+ * Where Google sends a native sign-in back to.
+ *
+ * Stated rather than inferred. The library only derives
+ * `<applicationId>:/oauthredirect` when `Constants.executionEnvironment` is
+ * standalone or bare - anywhere else it falls back to a `Linking.createURL`
+ * value, which in a development build is an `exp://` address that Google
+ * rejects outright with `invalid_request`. Naming it here means the redirect
+ * is the same in a dev build, a preview APK and a store build.
+ *
+ * Undefined on web, so the library computes the origin-based one there.
+ */
+function nativeRedirectUri(): string | undefined {
+  if (Platform.OS === 'web') return undefined;
+
+  const applicationId =
+    Platform.OS === 'android'
+      ? Constants.expoConfig?.android?.package
+      : Constants.expoConfig?.ios?.bundleIdentifier;
+
+  return applicationId ? `${applicationId}:/oauthredirect` : undefined;
+}
+
 export function useGoogleSignIn(): {
   status: SignInStatus;
   signIn: () => void;
@@ -37,6 +62,7 @@ export function useGoogleSignIn(): {
 
   const [, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: clientId ?? undefined,
+    redirectUri: nativeRedirectUri(),
   });
 
   // The redirect can resolve after a remount, so the exchange is guarded
