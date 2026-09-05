@@ -177,6 +177,87 @@ describe('path cache', () => {
     });
   });
 
+  describe('when a technique is curated', () => {
+    /**
+     * Resources are fetched the first time a technique is opened, and that
+     * endpoint answers with a technique rather than a path. Without folding it
+     * back in, the videos existed on the technique screen and nowhere else -
+     * Today's "Saved for later" kept showing the path as it was before.
+     */
+    it('shows its new resources on every screen', async () => {
+      const view = await renderHook(
+        () => ({ read: usePath('path_guitar'), cache: usePathCache() }),
+        { wrapper },
+      );
+
+      await waitFor(() => expect(view.result.current.read.path).not.toBeNull());
+      expect(view.result.current.read.path?.techniques[1]?.resources).toHaveLength(0);
+
+      const curated = {
+        ...technique(1, 'active'),
+        resources: [
+          {
+            id: 'res_1',
+            techniqueId: 'tec_1',
+            format: 'video' as const,
+            title: 'Fast chord changes',
+            url: 'https://example.test/watch',
+            thumbnailUrl: null,
+            source: 'Paul Davids',
+            durationSec: 784,
+            selectionReason: 'Shortest clear demonstration.',
+          },
+        ],
+      };
+      await act(async () => view.result.current.cache.applyTechnique(curated));
+
+      expect(view.result.current.read.path?.techniques[1]?.resources).toHaveLength(1);
+      expect(mockGetPath).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves the other techniques untouched', async () => {
+      const view = await renderHook(
+        () => ({ read: usePath('path_guitar'), cache: usePathCache() }),
+        { wrapper },
+      );
+
+      await waitFor(() => expect(view.result.current.read.path).not.toBeNull());
+      const before = view.result.current.read.path?.techniques[0];
+
+      await act(async () =>
+        view.result.current.cache.applyTechnique({ ...technique(1, 'active'), title: 'Renamed' }),
+      );
+
+      expect(view.result.current.read.path?.techniques[0]).toBe(before);
+      expect(view.result.current.read.path?.techniques[1]?.title).toBe('Renamed');
+    });
+
+    /** Every fetch calls this, so an unchanged technique must not rerender. */
+    it('does not churn the cache when nothing changed', async () => {
+      const view = await renderHook(
+        () => ({ read: usePath('path_guitar'), cache: usePathCache() }),
+        { wrapper },
+      );
+
+      await waitFor(() => expect(view.result.current.read.path).not.toBeNull());
+      const before = view.result.current.read.path;
+
+      await act(async () => view.result.current.cache.applyTechnique(before!.techniques[1]!));
+
+      expect(view.result.current.read.path).toBe(before);
+    });
+
+    it('ignores a technique whose path is not held', async () => {
+      const view = await renderHook(() => usePathCache(), { wrapper });
+
+      await act(async () =>
+        view.result.current.applyTechnique({ ...technique(0, 'active'), pathId: 'path_unknown' }),
+      );
+
+      expect(view.result.current.pathsById).toEqual({});
+    });
+  });
+
   describe('remembering what the board has already shown', () => {
     it('reports nothing seen on a first view, so there is no animation to play', async () => {
       const view = await renderHook(() => usePathCache(), { wrapper });

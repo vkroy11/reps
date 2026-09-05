@@ -1,6 +1,7 @@
 import { ApiError } from '@reps/client';
 import type { Technique, TechniqueContent } from '@reps/core';
 import { useCallback, useEffect, useState } from 'react';
+import { usePathCache } from '../paths/path-cache';
 import { useApp } from '../../providers/app-provider';
 
 function toApiError(caught: unknown): ApiError {
@@ -23,6 +24,7 @@ interface TechniqueState {
  */
 export function useTechnique(techniqueId: string | null): TechniqueState {
   const { api, ready } = useApp();
+  const { applyTechnique } = usePathCache();
   const [technique, setTechnique] = useState<Technique | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -36,7 +38,16 @@ export function useTechnique(techniqueId: string | null): TechniqueState {
     api
       .getTechnique(techniqueId)
       .then((result) => {
-        if (active) setTechnique(result);
+        if (!active) return;
+
+        setTechnique(result);
+        /*
+          This response is where lazily curated resources first appear, so it
+          is folded into the cached path too - otherwise the videos exist on
+          this screen and nowhere else, and Today's shelf keeps showing the
+          path as it was before the lesson was found.
+        */
+        applyTechnique(result);
       })
       .catch((caught: unknown) => {
         if (!active) return;
@@ -47,7 +58,7 @@ export function useTechnique(techniqueId: string | null): TechniqueState {
     return () => {
       active = false;
     };
-  }, [api, ready, techniqueId, attempt]);
+  }, [api, ready, techniqueId, attempt, applyTechnique]);
 
   return {
     technique: technique?.id === techniqueId ? technique : null,

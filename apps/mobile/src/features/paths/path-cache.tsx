@@ -1,5 +1,5 @@
 import { ApiError } from '@reps/client';
-import type { LearningPath, LearningPathSummary } from '@reps/core';
+import type { LearningPath, LearningPathSummary, Technique } from '@reps/core';
 import {
   createContext,
   useCallback,
@@ -32,6 +32,11 @@ interface PathCacheValue {
    * list agrees without a second request.
    */
   applyPath: (path: LearningPath) => void;
+  /**
+   * Replaces one technique inside its cached path, for mutations that answer
+   * with a technique rather than a whole path.
+   */
+  applyTechnique: (technique: Technique) => void;
   /** Completions the board has already animated for this path, if any. */
   seenDone: (pathId: string) => number | null;
   markSeen: (pathId: string, doneCount: number) => void;
@@ -165,6 +170,29 @@ export function PathCacheProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  /*
+    Resources are curated lazily, the first time a technique is opened, and
+    that endpoint answers with the technique rather than the path. Without
+    folding it back in, the videos existed on the technique screen and nowhere
+    else - Today's "Saved for later" kept showing the path as it was before the
+    lesson was found.
+  */
+  const applyTechnique = useCallback((technique: Technique) => {
+    setPathsById((current) => {
+      const path = current[technique.pathId];
+      if (!path) return current;
+
+      const techniques = path.techniques.map((candidate) =>
+        candidate.id === technique.id ? technique : candidate,
+      );
+      // Identity is what the memoised readers key off, so an unchanged
+      // technique must not produce a new path object.
+      if (techniques.every((candidate, at) => candidate === path.techniques[at])) return current;
+
+      return { ...current, [path.id]: { ...path, techniques } };
+    });
+  }, []);
+
   const value = useMemo<PathCacheValue>(
     () => ({
       summaries,
@@ -176,10 +204,11 @@ export function PathCacheProvider({ children }: { children: ReactNode }) {
       ensurePath: (pathId: string) => fetchPath(pathId, false),
       refreshPath: (pathId: string) => fetchPath(pathId, true),
       applyPath,
+      applyTechnique,
       seenDone: (pathId: string) => seen.current.get(pathId) ?? null,
       markSeen: (pathId: string, doneCount: number) => seen.current.set(pathId, doneCount),
     }),
-    [summaries, listError, pathsById, errorsById, fetchList, fetchPath, applyPath],
+    [summaries, listError, pathsById, errorsById, fetchList, fetchPath, applyPath, applyTechnique],
   );
 
   return <PathCacheContext.Provider value={value}>{children}</PathCacheContext.Provider>;

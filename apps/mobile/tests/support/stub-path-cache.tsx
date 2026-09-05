@@ -10,6 +10,7 @@ import type { ReactNode } from 'react';
  */
 export const stubPathCache = {
   applyPath: jest.fn(),
+  applyTechnique: jest.fn(),
   markSeen: jest.fn(),
   ensurePath: jest.fn(),
   ensureList: jest.fn(),
@@ -21,6 +22,7 @@ export const stubPathCache = {
 
 export function resetStubPathCache() {
   stubPathCache.applyPath.mockClear();
+  stubPathCache.applyTechnique.mockClear();
   stubPathCache.markSeen.mockClear();
   stubPathCache.ensurePath.mockClear();
   stubPathCache.ensureList.mockClear();
