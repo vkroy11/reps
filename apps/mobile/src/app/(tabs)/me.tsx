@@ -1,16 +1,36 @@
 import { stageCount } from '@reps/core';
 import { Card, Text, color, space } from '@reps/ui';
 import { Link } from 'expo-router';
-import { useEffect, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SyncCard } from '../../features/auth/SyncCard';
+import { useAuthAvailable } from '../../features/auth/useAuthAvailable';
 import { usePath, usePathList } from '../../features/paths/usePaths';
 import { usePracticeHistory } from '../../features/progress/useStreak';
 import { ReminderCard } from '../../features/reminders/ReminderCard';
 import { useReminder } from '../../features/reminders/useReminder';
-import { resolveApiBaseUrl } from '../../lib/api-base-url';
-import { useApp } from '../../providers/app-provider';
+import Constants from 'expo-constants';
+
+/**
+ * The version this build was cut from.
+ *
+ * `version` from the app config, with the native build number after it where
+ * there is one - two builds can share a version and differ, which is exactly
+ * when somebody is trying to tell you which one they are on.
+ *
+ * The API base URL used to sit here instead. It is the more useful line while
+ * developing and the wrong one to ship: it means nothing to a learner, and it
+ * publishes where the backend lives to anyone who opens the tab.
+ */
+function appVersion(): string {
+  const version = Constants.expoConfig?.version ?? 'dev';
+  const build =
+    Platform.OS === 'android'
+      ? Constants.expoConfig?.android?.versionCode
+      : Constants.expoConfig?.ios?.buildNumber;
+
+  return build ? `${version} (${build})` : version;
+}
 
 /**
  * Not a settings screen: what you have done, one reminder, and the build.
@@ -21,9 +41,8 @@ import { useApp } from '../../providers/app-provider';
  */
 export default function MeScreen() {
   const insets = useSafeAreaInsets();
-  const { api, ready } = useApp();
   const { paths, focusedId } = usePathList();
-  const [authAvailable, setAuthAvailable] = useState<boolean | null>(null);
+  const authAvailable = useAuthAvailable();
   const { path } = usePath(focusedId);
   const { entries, streak } = usePracticeHistory();
 
@@ -41,25 +60,6 @@ export default function MeScreen() {
     and discovering server-side that sign-in is unconfigured - turns a missing
     setting into a failed tap.
   */
-  useEffect(() => {
-    if (!ready || !api) return;
-
-    // Named `cancelled` rather than `active`, which is the active technique
-    // three lines up.
-    let cancelled = false;
-    api
-      .authAvailable()
-      .then((available) => {
-        if (!cancelled) setAuthAvailable(available);
-      })
-      .catch(() => {
-        if (!cancelled) setAuthAvailable(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [api, ready]);
 
   const completed = paths.reduce((sum, item) => sum + item.completedCount, 0);
   const total = paths.reduce((sum, item) => sum + item.techniqueCount, 0);
@@ -129,8 +129,8 @@ export default function MeScreen() {
         Build
       </Text>
       <Card>
+        <Row label="Version" value={appVersion()} />
         <Row label="Platform" value={`${Platform.OS} ${String(Platform.Version ?? '')}`} />
-        <Row label="API" value={resolveApiBaseUrl()} />
       </Card>
 
       {__DEV__ ? (
@@ -167,7 +167,12 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   label: { marginTop: space.base },
-  row: { flexDirection: 'row', justifyContent: 'space-between', gap: space.base, paddingVertical: 5 },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: space.base,
+    paddingVertical: 5,
+  },
   value: { flex: 1, minWidth: 0, textAlign: 'right' },
   devLink: { alignSelf: 'center', paddingVertical: space.base },
 });

@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SignInPrompt } from '../../features/auth/SignInPrompt';
 import { useNotebook } from '../../features/notes/useNotes';
 import { usePath, usePathList, usePathsFor } from '../../features/paths/usePaths';
 import { usePracticeHistory, useWeek } from '../../features/progress/useStreak';
@@ -176,6 +177,10 @@ export default function TodayScreen() {
             onPress={() => router.push('/onboarding/skill')}
             testID="start-hobby"
           />
+
+          {/* For the returning learner, whose account has paths this device
+              has never seen. Optional, and secondary to starting one. */}
+          <SignInPrompt />
         </View>
       </View>
     );

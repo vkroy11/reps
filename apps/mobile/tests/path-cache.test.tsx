@@ -7,11 +7,14 @@ import { usePath, usePathList } from '../src/features/paths/usePaths';
 const mockListPaths = jest.fn<Promise<LearningPathSummary[]>, []>();
 const mockGetPath = jest.fn<Promise<LearningPath>, [string]>();
 
+let mockSession: { userId: string } | null = null;
+
 jest.mock('../src/providers/app-provider', () => ({
   useApp: () => ({
     api: { listPaths: mockListPaths, getPath: mockGetPath },
     ready: true,
     focusedPathId: null,
+    session: mockSession,
   }),
 }));
 
@@ -87,6 +90,42 @@ describe('path cache', () => {
     mockGetPath.mockReset();
     mockListPaths.mockResolvedValue([summaryOf(path(START))]);
     mockGetPath.mockResolvedValue(path(START));
+    mockSession = null;
+  });
+
+  /**
+   * The API client object stays the same across a sign-in - it holds a token
+   * getter, not a token - so nothing downstream notices on its own. Without
+   * this, signing in on a device with no paths kept serving the anonymous
+   * empty list, and the button appeared to do nothing.
+   */
+  describe('when the learner signs in', () => {
+    it('drops what it held for the previous identity', async () => {
+      const view = await renderHook(() => ({ list: usePathList(), cache: usePathCache() }), {
+        wrapper,
+      });
+
+      await waitFor(() => expect(view.result.current.list.paths).toHaveLength(1));
+
+      mockListPaths.mockResolvedValue([
+        summaryOf(path(START)),
+        { ...summaryOf(path(START)), id: 'path_chess', skill: 'chess' },
+      ]);
+      mockSession = { userId: 'usr_signed_in' };
+      await act(async () => view.rerender({}));
+
+      await waitFor(() => expect(view.result.current.list.paths).toHaveLength(2));
+      expect(mockListPaths).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not clear on the first observation, when nothing has changed yet', async () => {
+      const view = await renderHook(() => usePathList(), { wrapper });
+
+      await waitFor(() => expect(view.result.current.paths).toHaveLength(1));
+      await act(async () => view.rerender({}));
+
+      expect(mockListPaths).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('memoising', () => {

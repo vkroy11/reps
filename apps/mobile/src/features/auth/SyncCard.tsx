@@ -1,5 +1,6 @@
 import { Button, Card, Text, color, space } from '@reps/ui';
 import { StyleSheet, View } from 'react-native';
+import { googleSignInConfigured } from '../../lib/google-oauth';
 import { useApp } from '../../providers/app-provider';
 import { useGoogleSignIn } from './useGoogleSignIn';
 
@@ -18,7 +19,6 @@ import { useGoogleSignIn } from './useGoogleSignIn';
  */
 export function SyncCard({ serverAvailable }: { serverAvailable: boolean | null }) {
   const { session, signOut } = useApp();
-  const { status, signIn } = useGoogleSignIn();
 
   if (session) {
     return (
@@ -44,7 +44,16 @@ export function SyncCard({ serverAvailable }: { serverAvailable: boolean | null 
     );
   }
 
-  if (status.state === 'unconfigured' || serverAvailable === false) {
+  /*
+    Checked before the Google hook, not inside it.
+
+    `useIdTokenAuthRequest` throws outright when the platform has no client id
+    - "Client Id property `iosClientId` must be defined" - so on a build with
+    no iOS client this card took the whole screen down rather than showing the
+    "not configured" message it has for exactly that case. It cannot be a
+    conditional hook, so the branch has to happen one component up.
+  */
+  if (!googleSignInConfigured() || serverAvailable === false) {
     return (
       <Card>
         <Text variant="heading">Sync across devices</Text>
@@ -55,6 +64,13 @@ export function SyncCard({ serverAvailable }: { serverAvailable: boolean | null 
       </Card>
     );
   }
+
+  return <SignInCard serverAvailable={serverAvailable} />;
+}
+
+/** The half that needs the Google hook, reached only when it can run. */
+function SignInCard({ serverAvailable }: { serverAvailable: boolean | null }) {
+  const { status, signIn } = useGoogleSignIn();
 
   return (
     <Card>

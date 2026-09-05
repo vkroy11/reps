@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useApp } from '../../providers/app-provider';
+import { useOnIdentityChange } from '../../providers/useIdentityChange';
 
 function toApiError(caught: unknown): ApiError {
   return caught instanceof ApiError
@@ -147,6 +148,21 @@ export function PathCacheProvider({ children }: { children: ReactNode }) {
         });
     },
     [api, ready, pathsById, errorsById],
+  );
+
+  /*
+    Signing in or out replaces the learner behind every request, so everything
+    held here belongs to somebody else now. Cleared rather than refetched: the
+    screens are already asking, and their ensure* calls fill it back in.
+  */
+  useOnIdentityChange(
+    useCallback(() => {
+      setSummaries(null);
+      setListError(null);
+      setPathsById({});
+      setErrorsById({});
+      seen.current.clear();
+    }, []),
   );
 
   const applyPath = useCallback((path: LearningPath) => {

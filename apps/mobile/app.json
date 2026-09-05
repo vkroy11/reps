@@ -5,7 +5,7 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/brand/icon.png",
-    "scheme": "reps",
+    "scheme": ["reps", "com.reps.app"],
     "userInterfaceStyle": "light",
     "backgroundColor": "#F8FAFC",
     "ios": {

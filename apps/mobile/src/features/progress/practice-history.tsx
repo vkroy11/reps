@@ -3,6 +3,7 @@ import type { PracticeEntry } from '@reps/core';
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useApp } from '../../providers/app-provider';
+import { useOnIdentityChange } from '../../providers/useIdentityChange';
 
 function toApiError(caught: unknown): ApiError {
   return caught instanceof ApiError
@@ -67,6 +68,14 @@ export function PracticeHistoryProvider({ children }: { children: ReactNode }) {
         });
     },
     [api, ready, entries, error],
+  );
+
+  // Someone else's practice, once the identity changes. See the path cache.
+  useOnIdentityChange(
+    useCallback(() => {
+      setEntries(null);
+      setError(null);
+    }, []),
   );
 
   const applyEntry = useCallback((entry: PracticeEntry) => {
