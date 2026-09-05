@@ -1,4 +1,4 @@
-import type { ContentFormat } from '@reps/core';
+import { SUPPORTED_LANGUAGES, type ContentFormat } from '@reps/core';
 import { Text, panels, space } from '@reps/ui';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -14,12 +14,6 @@ const FORMATS: { value: ContentFormat; label: string; hint: string }[] = [
   { value: 'drill', label: 'Drills', hint: 'Steps you run yourself' },
   { value: 'article', label: 'Reading', hint: 'Short written explainers' },
   { value: 'flashcards', label: 'Cards', hint: 'For anything recall-based' },
-];
-
-const LANGUAGES = [
-  { value: 'en', label: 'English' },
-  { value: 'hi', label: 'Hindi' },
-  { value: 'es', label: 'Spanish' },
 ];
 
 export default function FormatsScreen() {
@@ -79,17 +73,17 @@ export default function FormatsScreen() {
       </View>
 
       <Text variant="overline" style={[styles.label, { color: panel.ink2 }]}>
-        Video language
+        Language
       </Text>
       <View style={styles.chips}>
-        {LANGUAGES.map((option) => (
+        {SUPPORTED_LANGUAGES.map((option) => (
           <PanelChip
-            key={option.value}
+            key={option.code}
             label={option.label}
             panel={panel}
-            selected={language === option.value}
-            onPress={() => setLanguage(option.value)}
-            testID={`language-${option.value}`}
+            selected={language === option.code}
+            onPress={() => setLanguage(option.code)}
+            testID={`language-${option.code}`}
           />
         ))}
       </View>

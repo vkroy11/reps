@@ -146,3 +146,20 @@ export const NoteWithContextSchema = NoteSchema.extend({
   skill: z.string(),
 });
 export type NoteWithContext = z.infer<typeof NoteWithContextSchema>;
+
+/**
+ * The languages onboarding offers, and their names.
+ *
+ * Names rather than codes reach the model: "hi" is ambiguous English, and a
+ * planner told to write in "hi" writes in English. One list, shared, so the
+ * onboarding chips and the prompts cannot drift apart.
+ */
+export const SUPPORTED_LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'hi', label: 'Hindi' },
+  { code: 'es', label: 'Spanish' },
+] as const;
+
+export function languageName(code: string): string {
+  return SUPPORTED_LANGUAGES.find((entry) => entry.code === code)?.label ?? code;
+}

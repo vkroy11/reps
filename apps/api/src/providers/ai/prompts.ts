@@ -1,4 +1,4 @@
-import { MAX_TECHNIQUES, MIN_TECHNIQUES } from '@reps/core';
+import { MAX_TECHNIQUES, MIN_TECHNIQUES, languageName } from '@reps/core';
 import type {
   GenerateBridgeInput,
   GenerateContentInput,
@@ -27,13 +27,25 @@ export const SYSTEM_PROMPT = [
 ].join('\n');
 
 function describeContext(context: PathContext): string {
+  const language = languageName(context.language);
+
   return [
     `Skill: ${context.skill}`,
     `Goal: ${context.goal}`,
     `Current level: ${context.level}`,
     `Time available: ${context.dailyMinutes} minutes a day, ${context.daysPerWeek} days a week`,
     `Preferred formats: ${context.preferredFormats.join(', ') || 'no preference'}`,
-    `Resource language: ${context.language}`,
+    /*
+      Stated as an instruction, not as a field. "Resource language: hi" was
+      read as metadata about which videos to look for, so every drill, card and
+      technique title came back in English however the learner answered. It is
+      the language of the whole product for this person, so it is phrased that
+      way - and by name, because a model told to write in "hi" writes English.
+    */
+    `Language: write EVERY learner-facing string in ${language} - technique titles,`,
+    `drill steps, flashcards, lesson text, all of it. Search queries stay in ${language}`,
+    'too, so the resources found are in the language the learner reads.',
+    'JSON keys and enum values stay exactly as specified, in English.',
   ].join('\n');
 }
 
@@ -47,14 +59,14 @@ function describeContext(context: PathContext): string {
  * distinction reproducible.
  */
 const ARCHETYPE_RULES = [
-  'Classify the skill archetype. Pick by what the learner\'s *first obstacle* is:',
+  "Classify the skill archetype. Pick by what the learner's *first obstacle* is:",
   '- motor: the body has to learn it through repetition.',
   '  guitar chords, a tennis serve, knife skills, skateboarding, swimming.',
   '- strategic: knowing the moves is easy, choosing between them is hard.',
   '  chess, poker, negotiation, debugging, tasting and identifying.',
   '- recall: there are many discrete facts, names, forms or rules to know cold,',
   '  and not knowing them is what stops you.',
-  '  a language\'s vocabulary, a programming language\'s syntax and standard library,',
+  "  a language's vocabulary, a programming language's syntax and standard library,",
   '  anatomy, music theory, chess openings, wine varieties, keyboard shortcuts.',
   '- craft: technique is judged by the work it produces, and improving means',
   '  making things and critiquing them.',
