@@ -12,6 +12,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
+import { useWebViewport } from '../lib/web-viewport';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { FrameMeter } from '../features/dev/FrameMeter';
@@ -40,6 +41,7 @@ void SplashScreen.preventAutoHideAsync();
 void WebBrowser.maybeCompleteAuthSession();
 
 export default function RootLayout() {
+  useWebViewport();
   const [fontsLoaded, fontError] = useFonts({
     Nunito_400Regular,
     Nunito_600SemiBold,

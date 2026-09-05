@@ -1,5 +1,7 @@
 import { color, font, space, useBreakpoint } from '@reps/ui';
 import { Tabs } from 'expo-router';
+import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TabIcon } from '../../components/tab-icons';
 
 /**
@@ -17,6 +19,8 @@ import { TabIcon } from '../../components/tab-icons';
  */
 export default function TabLayout() {
   const { isWide } = useBreakpoint();
+  const insets = useSafeAreaInsets();
+  const isWeb = Platform.OS === 'web';
 
   return (
     <Tabs
@@ -35,6 +39,7 @@ export default function TabLayout() {
         tabBarActiveBackgroundColor: isWide ? color.brandSoft : undefined,
         sceneStyle: { backgroundColor: color.surfacePage },
         tabBarPosition: isWide ? 'left' : 'bottom',
+        tabBarItemStyle: isWeb && !isWide ? { paddingBottom: space.xs } : undefined,
         tabBarStyle: isWide
           ? {
               backgroundColor: color.surfaceCard,
@@ -43,15 +48,26 @@ export default function TabLayout() {
               width: 216,
               paddingTop: space.lg,
             }
-          : {
-              backgroundColor: color.surfaceCard,
-              borderTopColor: color.borderDefault,
-              height: 76,
-              paddingTop: space.sm,
-            },
+          : isWeb
+            ? {
+                backgroundColor: color.surfaceCard,
+                borderTopColor: color.borderDefault,
+                height: 76,
+                paddingTop: space.sm,
+                paddingBottom: space.sm,
+              }
+            : {
+                backgroundColor: color.surfaceCard,
+                borderTopColor: color.borderDefault,
+                minHeight: 76,
+                paddingTop: space.sm,
+                paddingBottom: insets.bottom,
+              },
         tabBarLabelStyle: {
           fontFamily: font.extrabold,
           fontSize: isWide ? 14 : 11,
+          lineHeight: isWide ? 18 : 14,
+          ...(isWeb ? { includeFontPadding: false } : null),
         },
       }}
     >

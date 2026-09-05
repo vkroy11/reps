@@ -7,6 +7,15 @@ const TITLE = 'Reps — get good at one thing at a time';
 const DESCRIPTION =
   'Reps builds a short path of 5–8 techniques for the hobby you pick, finds the right thing to watch, and tracks practice until you can do the thing.';
 
+/** `--app-height` is `visualViewport.height` on web; `100svh` until that runs. */
+const RESET = `
+  html, body { margin: 0; overflow: hidden; overscroll-behavior-y: none; height: 100%; }
+  #root { display: flex; flex: 1 1 auto; height: 100%; }
+  @supports (height: 100svh) {
+    html, body, #root { height: var(--app-height, 100svh); }
+  }
+`;
+
 /**
  * The HTML shell every statically rendered route is wrapped in.
  *
@@ -24,6 +33,7 @@ const DESCRIPTION =
  * and the width and height let WhatsApp reserve the right shape before the
  * image arrives, which is the difference between a large card and a thumbnail.
  */
+
 export default function Root({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
@@ -61,6 +71,7 @@ export default function Root({ children }: { children: ReactNode }) {
           the way they do on native. Required by Expo Router's static output.
         */}
         <ScrollViewStyleReset />
+        <style dangerouslySetInnerHTML={{ __html: RESET }} />
       </head>
       <body>{children}</body>
     </html>
