@@ -169,8 +169,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       tokenRef.current = null;
       setSession(null);
       await sessionStore.clear();
-      // The device now speaks for an empty learner, so the next cold start
-      // should show the welcome screen rather than an empty Today.
+      /*
+        The device now speaks for an empty learner, so it goes back to the
+        welcome screen. Written *and* set: saving alone only takes effect on
+        the next cold start, so until then the landing route kept redirecting
+        to a Today with nothing on it.
+      */
+      setOnboarded(false);
       await onboardedStore.save(false);
     }
   }, [api, sessionStore, onboardedStore]);
