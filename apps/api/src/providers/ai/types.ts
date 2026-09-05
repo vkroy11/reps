@@ -32,6 +32,14 @@ export interface GenerateContentInput {
   context: PathContext;
   technique: { title: string; whyItMatters: string; practicePrompt: string; modality: Modality };
   format: GeneratedContentFormat;
+  /**
+   * What this technique produced last time, when the learner is repeating it.
+   *
+   * Present only on a repeat. The prompt uses it to avoid handing back the
+   * same deck in the same order - practising against cards you have already
+   * memorised the position of measures recall of the list, not of the answers.
+   */
+  previous?: TechniqueContent;
 }
 
 export interface RegenerateTailInput {

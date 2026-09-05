@@ -191,8 +191,12 @@ export function createApiClient({
     async getTechniqueContent(
       techniqueId: string,
       format?: GeneratedContentFormat,
+      options: { fresh?: boolean } = {},
     ): Promise<TechniqueContent> {
-      const query = format ? `?format=${format}` : '';
+      const params = new URLSearchParams();
+      if (format) params.set('format', format);
+      if (options.fresh) params.set('fresh', '1');
+      const query = params.size > 0 ? `?${params.toString()}` : '';
       const { content } = await request(`/api/techniques/${techniqueId}/content${query}`, {
         schema: z.object({ content: TechniqueContentSchema }),
         timeoutMs: 45_000,

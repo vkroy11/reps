@@ -6,6 +6,15 @@ import type { Services } from '../services';
 
 const ContentQuerySchema = z.object({
   format: z.enum(['ai_lesson', 'flashcards', 'drill']).optional(),
+  /**
+   * Ask for a new variant instead of the stored one. Set when the learner is
+   * repeating a technique they have already practised, so the deck does not
+   * come back in the order they memorised it in.
+   */
+  fresh: z
+    .enum(['1', 'true'])
+    .optional()
+    .transform((value) => value !== undefined),
 });
 
 /**
@@ -17,17 +26,16 @@ export function createTechniquesRouter(services: Services): Router {
   const router = Router();
 
   router.get('/:id', async (req, res) => {
-    const technique = await services.techniques.ensureResources(
-      requireUserId(req),
-      req.params.id,
-    );
+    const technique = await services.techniques.ensureResources(requireUserId(req), req.params.id);
 
     res.json({ technique });
   });
 
   router.get('/:id/content', async (req, res) => {
-    const { format } = ContentQuerySchema.parse(req.query);
-    const content = await services.content.get(requireUserId(req), req.params.id, format);
+    const { format, fresh } = ContentQuerySchema.parse(req.query);
+    const content = await services.content.get(requireUserId(req), req.params.id, format, {
+      fresh,
+    });
 
     res.json({ content });
   });

@@ -24,13 +24,20 @@ export function createContentService(deps: {
       userId: string,
       techniqueId: string,
       requestedFormat?: GeneratedContentFormat,
+      options: { fresh?: boolean } = {},
     ): Promise<TechniqueContent> {
       const { path, technique } = await deps.techniques.locate(userId, techniqueId);
       const format = requestedFormat ?? generatedContentFormatFor(technique.modality);
 
       const cached = await deps.repositories.techniqueContent.find(techniqueId, format);
-      if (cached) return cached;
+      if (cached && !options.fresh) return cached;
 
+      /*
+        A repeat gets a new variant rather than the stored one. Drilling the
+        same deck in the same order stops measuring recall of the answers and
+        starts measuring recall of the list - so the previous attempt is handed
+        to the model as the thing to vary against, and replaces it once written.
+      */
       const content = await deps.ai.generateContent({
         context: toPathContext(path),
         technique: {
@@ -40,6 +47,7 @@ export function createContentService(deps: {
           modality: technique.modality,
         },
         format,
+        ...(cached ? { previous: cached } : {}),
       });
 
       await deps.repositories.techniqueContent.save(techniqueId, format, content);

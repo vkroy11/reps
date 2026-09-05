@@ -39,8 +39,19 @@ export default function PracticeScreen() {
     The written instructions, fetched alongside the technique rather than on
     demand: generation takes a model call, and asking for it only when the
     learner taps "step by step" would make the panel feel broken mid-rep.
+
+    Held until the technique arrives, because whether this is a repeat decides
+    which content to ask for - and firing first would fetch the stored deck the
+    learner has already been through.
   */
-  const { content, loading: contentLoading } = useTechniqueContent(id ?? null, { eager: true });
+  const repeat = (technique?.practiceMinutes ?? 0) > 0;
+  const { content, loading: contentLoading } = useTechniqueContent(
+    technique ? (id ?? null) : null,
+    {
+      eager: true,
+      fresh: repeat,
+    },
+  );
 
   const [stage, setStage] = useState<Stage>('timing');
   const [minutes, setMinutes] = useState(0);

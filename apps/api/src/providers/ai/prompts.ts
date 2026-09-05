@@ -214,6 +214,48 @@ export function rankResourcesPrompt(input: RankResourcesInput): string {
   ].join('\n');
 }
 
+/**
+ * What to avoid repeating when the learner comes back to a technique.
+ *
+ * Handing back the same deck in the same order measures recall of the list,
+ * not of the answers - by the third pass they are answering from position.
+ * Half new is the floor: enough that the session is genuinely a test again,
+ * few enough that the cards they are still learning come back around.
+ */
+function describeRepeat(previous: GenerateContentInput['previous']): string[] {
+  if (!previous) return [];
+
+  if (previous.format === 'flashcards') {
+    return [
+      'REPEAT SESSION. The learner has already worked through this deck:',
+      ...previous.cards.map((card) => `  - ${card.front}`),
+      '',
+      'At least half the cards you return must be ones NOT in that list, and the',
+      'ones you keep must come back in a different order. Keep the cards worth',
+      'drilling again; drop the ones that were only ever easy.',
+      '',
+    ];
+  }
+
+  if (previous.format === 'drill') {
+    return [
+      'REPEAT SESSION. The learner has already done this drill:',
+      ...previous.steps.map((step) => `  - ${step}`),
+      '',
+      'Write a different drill for the same technique - vary the order, the counts',
+      'and the constraint. It must be recognisably the same skill, and it must not',
+      'be the same session twice.',
+      '',
+    ];
+  }
+
+  return [
+    'REPEAT SESSION. The learner has read this lesson before, so lead with what',
+    'they most likely got wrong rather than repeating the introduction.',
+    '',
+  ];
+}
+
 export function generateContentPrompt(input: GenerateContentInput): string {
   const shared = [
     describeContext(input.context),
@@ -222,6 +264,7 @@ export function generateContentPrompt(input: GenerateContentInput): string {
     `Why it matters: ${input.technique.whyItMatters}`,
     `The rep: ${input.technique.practicePrompt}`,
     '',
+    ...describeRepeat(input.previous),
   ];
 
   if (input.format === 'flashcards') {

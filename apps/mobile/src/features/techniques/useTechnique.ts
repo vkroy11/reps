@@ -79,12 +79,13 @@ interface ContentState {
  */
 export function useTechniqueContent(
   techniqueId: string | null,
-  options: { eager?: boolean } = {},
+  options: { eager?: boolean; fresh?: boolean } = {},
 ): ContentState {
+  const { eager = false, fresh = false } = options;
   const { api, ready } = useApp();
   const [content, setContent] = useState<TechniqueContent | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
-  const [requested, setRequested] = useState(options.eager ? 1 : 0);
+  const [requested, setRequested] = useState(eager ? 1 : 0);
 
   useEffect(() => {
     if (!ready || !api || !techniqueId || requested === 0) return;
@@ -93,7 +94,7 @@ export function useTechniqueContent(
     setError(null);
 
     api
-      .getTechniqueContent(techniqueId)
+      .getTechniqueContent(techniqueId, undefined, { fresh })
       .then((result) => {
         if (active) setContent(result);
       })
@@ -104,7 +105,7 @@ export function useTechniqueContent(
     return () => {
       active = false;
     };
-  }, [api, ready, techniqueId, requested]);
+  }, [api, ready, techniqueId, requested, fresh]);
 
   return {
     content,
