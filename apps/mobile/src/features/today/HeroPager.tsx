@@ -2,7 +2,7 @@ import { isPathComplete } from '@reps/client';
 import { GATE_EVERY, clearedStages, stageCount, type LearningPathSummary } from '@reps/core';
 import { Text, color, motion, radius, space, useReduceMotion } from '@reps/ui';
 import Plus from 'lucide-react-native/icons/plus';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -52,6 +52,14 @@ export function HeroPager({
 }: HeroPagerProps) {
   const [index, setIndex] = useState(initialIndex);
   const scroller = useRef<ScrollView>(null);
+  const settling = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (settling.current) clearTimeout(settling.current);
+    },
+    [],
+  );
 
   const pages: Page[] = [
     ...paths.filter((path) => !isPathComplete(path)).map((path) => ({ key: path.id, path })),
@@ -59,14 +67,36 @@ export function HeroPager({
     ...paths.filter((path) => isPathComplete(path)).map((path) => ({ key: path.id, path })),
   ];
 
-  const onSettle = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const next = Math.round(event.nativeEvent.contentOffset.x / pageWidth);
+  const settleTo = (offsetX: number) => {
+    const next = Math.round(offsetX / pageWidth);
     if (next === index) return;
 
     setIndex(next);
     // The "start something new" page focuses nothing.
     const page = pages[next];
     if (page?.path) onFocus(page.path.id);
+  };
+
+  const onSettle = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (settling.current) clearTimeout(settling.current);
+    settleTo(event.nativeEvent.contentOffset.x);
+  };
+
+  /*
+    react-native-web does not emit momentum events, so on web the swipe ended
+    and nothing told the rest of the screen: the hero moved, because each page
+    draws itself, while the gate card, the tiles and the saved shelf stayed on
+    the hobby that was still focused. Reading a settled scroll is the only
+    signal available there.
+
+    Debounced rather than acted on per event, because `onScroll` fires
+    throughout the drag and focusing a hobby the finger is still passing over
+    would refetch a path nobody asked for.
+  */
+  const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { x } = event.nativeEvent.contentOffset;
+    if (settling.current) clearTimeout(settling.current);
+    settling.current = setTimeout(() => settleTo(x), SETTLE_MS);
   };
 
   return (
@@ -77,6 +107,8 @@ export function HeroPager({
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={onSettle}
+        onScroll={onScroll}
+        testID="hero-pager-scroll"
         contentOffset={{ x: initialIndex * pageWidth, y: 0 }}
         style={{ width: pageWidth }}
         scrollEventThrottle={16}
@@ -127,6 +159,9 @@ export function HeroPager({
     </View>
   );
 }
+
+/** How long after the last scroll event a web swipe counts as finished. */
+const SETTLE_MS = 140;
 
 /** The active dot widens rather than changing size, so the row never reflows. */
 function Dot({ active, onPress, label }: { active: boolean; onPress: () => void; label: string }) {

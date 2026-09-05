@@ -7,7 +7,7 @@ import type {
   Technique,
 } from '@reps/core';
 import { toLocalDay } from '@reps/core';
-import { fireEvent, within } from '@testing-library/react-native';
+import { act, fireEvent, within } from '@testing-library/react-native';
 import TodayScreen from '../src/app/(tabs)/index';
 import { renderScreen } from './support/render-screen';
 
@@ -190,6 +190,10 @@ function entryDaysAgo(back: number, confidence: Confidence = 'getting_there') {
 }
 
 describe('TodayScreen', () => {
+  // The pager's web settle is debounced, so these tests drive the clock.
+  beforeAll(() => jest.useFakeTimers({ doNotFake: ['nextTick'] }));
+  afterAll(() => jest.useRealTimers());
+
   beforeEach(() => {
     mockPush.mockClear();
     mockFocusPath.mockClear();
@@ -323,6 +327,42 @@ describe('TodayScreen', () => {
       expect(
         within(getByTestId('hero-page-path_chess')).getByText('Path complete'),
       ).toBeOnTheScreen();
+    });
+
+    /**
+     * Web-only until now: react-native-web emits no momentum events, so the
+     * swipe ended and nothing told the rest of the screen. The hero moved,
+     * because each page draws itself, while the gate card and the tiles stayed
+     * on the hobby that was still focused.
+     */
+    it('focuses the hobby a swipe settles on, without momentum events', async () => {
+      const { getByTestId } = await renderScreen(<TodayScreen />);
+      const pager = getByTestId('hero-pager-scroll');
+
+      await fireEvent.scroll(pager, {
+        nativeEvent: { contentOffset: { x: 414, y: 0 } },
+      });
+
+      // Debounced, so nothing happens until the scrolling stops.
+      expect(mockFocusPath).not.toHaveBeenCalled();
+      await act(async () => {
+        jest.advanceTimersByTime(200);
+      });
+
+      expect(mockFocusPath).toHaveBeenCalledWith('path_chess');
+    });
+
+    it('ignores a scroll that lands back where it started', async () => {
+      const { getByTestId } = await renderScreen(<TodayScreen />);
+
+      await fireEvent.scroll(getByTestId('hero-pager-scroll'), {
+        nativeEvent: { contentOffset: { x: 0, y: 0 } },
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(200);
+      });
+
+      expect(mockFocusPath).not.toHaveBeenCalled();
     });
 
     it('starts another hobby from the last page', async () => {
