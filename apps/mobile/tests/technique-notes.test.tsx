@@ -33,11 +33,7 @@ let mockEmitProgress: ((data: ProgressData) => void) | null = null;
 jest.mock('react-native-youtube-bridge', () => ({
   YoutubeView: 'YoutubeView',
   useYouTubePlayer: () => ({ seekTo: mockSeekTo }),
-  useYouTubeEvent: (
-    _player: unknown,
-    event: string,
-    handler: (data: ProgressData) => void,
-  ) => {
+  useYouTubeEvent: (_player: unknown, event: string, handler: (data: ProgressData) => void) => {
     if (event === 'progress') mockEmitProgress = handler;
   },
 }));
@@ -267,7 +263,10 @@ describe('TechniqueScreen notes', () => {
       const { getByTestId } = await renderScreen(<TechniqueScreen />);
 
       await fireEvent.press(getByTestId('add-note'));
-      await fireEvent.changeText(getByTestId('note-input'), 'Metronome helps more than I expected.');
+      await fireEvent.changeText(
+        getByTestId('note-input'),
+        'Metronome helps more than I expected.',
+      );
       await fireEvent.press(getByTestId('save-note'));
 
       expect(mockAdd).toHaveBeenCalledWith({
@@ -280,7 +279,8 @@ describe('TechniqueScreen notes', () => {
     it('says why there is no video instead of showing an empty player', async () => {
       const { getByText } = await renderScreen(<TechniqueScreen />);
 
-      expect(getByText(/No video for this one/)).toBeOnTheScreen();
+      // The fixture is watch_and_do, so the explanation is the modality one.
+      expect(getByText(/Nothing worth watching for this one/)).toBeOnTheScreen();
     });
   });
 });
