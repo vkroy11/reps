@@ -7,6 +7,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackIcon } from '../../components/icons';
 import { LevelUpCelebration } from '../../features/practice/LevelUpCelebration';
+import { FlashcardDrill } from '../../features/practice/FlashcardDrill';
 import { PracticeTimer } from '../../features/practice/PracticeTimer';
 import { ReflectStep } from '../../features/practice/ReflectStep';
 import { SessionInstructions } from '../../features/practice/SessionInstructions';
@@ -122,7 +123,16 @@ export default function PracticeScreen() {
               </Text>
             </Card>
 
-            <SessionInstructions content={content} loading={contentLoading} />
+            {/*
+              A recall technique gets the deck itself, not a list of its cards.
+              Everything else gets the written instructions collapsed above the
+              timer - a drill is performed away from the phone, a deck is not.
+            */}
+            {content?.format === 'flashcards' ? (
+              <FlashcardDrill content={content} onFinished={() => undefined} />
+            ) : (
+              <SessionInstructions content={content} loading={contentLoading} />
+            )}
 
             <PracticeTimer
               targetMinutes={technique.estimatedMinutes}

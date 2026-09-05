@@ -73,6 +73,8 @@ export const FlashcardsContentSchema = z.object({
     .max(12),
 });
 
+export type FlashcardsContent = z.infer<typeof FlashcardsContentSchema>;
+
 export const DrillContentSchema = z.object({
   format: z.literal('drill'),
   steps: z.array(z.string().min(3).max(300)).min(2).max(6),
