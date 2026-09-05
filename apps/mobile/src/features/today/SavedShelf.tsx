@@ -3,6 +3,7 @@ import { Text, color, radius, space } from '@reps/ui';
 import BookOpen from 'lucide-react-native/icons/book-open';
 import FileText from 'lucide-react-native/icons/file-text';
 import Layers from 'lucide-react-native/icons/layers';
+import Lock from 'lucide-react-native/icons/lock';
 import Play from 'lucide-react-native/icons/play';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -26,6 +27,10 @@ export interface SavedItem {
   resource: Resource;
   techniqueId: string;
   techniqueTitle: string;
+  /** Still behind a gate. Listed, but not openable. */
+  locked: boolean;
+  /** What has to be finished first, for the message when it is tapped. */
+  blockedBy: string | null;
 }
 
 /**
@@ -40,6 +45,8 @@ export interface SavedItem {
 export function savedItems(path: LearningPath, limit: number): SavedItem[] {
   const items: SavedItem[] = [];
 
+  const active = path.techniques.find((technique) => technique.status === 'active') ?? null;
+
   for (const technique of path.techniques) {
     if (technique.status === 'completed' || technique.status === 'skipped') continue;
 
@@ -48,6 +55,14 @@ export function savedItems(path: LearningPath, limit: number): SavedItem[] {
         resource,
         techniqueId: technique.id,
         techniqueTitle: technique.title,
+        /*
+          Locked techniques stay on the shelf deliberately - seeing what is
+          coming is the point of a queue - but they are not a way past the
+          gate. Curation runs on first open, so a locked technique can have
+          videos the learner has not earned yet.
+        */
+        locked: technique.status === 'locked',
+        blockedBy: technique.status === 'locked' ? (active?.title ?? null) : null,
       });
     }
   }
@@ -83,7 +98,11 @@ export function SavedShelf({ items, onOpen }: SavedShelfProps) {
           <Pressable
             key={item.resource.id}
             accessibilityRole="button"
-            accessibilityLabel={`${KIND[item.resource.format]}: ${item.resource.title}. From ${item.techniqueTitle}.`}
+            accessibilityLabel={
+              item.locked
+                ? `Locked: ${item.resource.title}, from ${item.techniqueTitle}.`
+                : `${KIND[item.resource.format]}: ${item.resource.title}. From ${item.techniqueTitle}.`
+            }
             onPress={() => onOpen(item)}
             style={styles.card}
             testID={`saved-${item.resource.id}`}
@@ -94,6 +113,11 @@ export function SavedShelf({ items, onOpen }: SavedShelfProps) {
               it loads, and it stops the shelf flashing white.
             */}
             <View style={styles.thumb}>
+              {item.locked ? (
+                <View style={styles.lockVeil}>
+                  <Lock size={22} color={color.textOnBrand} strokeWidth={2.4} />
+                </View>
+              ) : null}
               {item.resource.thumbnailUrl ? (
                 <Image
                   source={{ uri: item.resource.thumbnailUrl }}
@@ -152,6 +176,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#0B1220',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  /* Over the thumbnail, so a locked item reads as locked before it is tapped. */
+  lockVeil: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    zIndex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(11, 18, 32, 0.62)',
   },
   body: { paddingHorizontal: space.md, paddingTop: space.md - 1, paddingBottom: space.md + 1 },
   title: { lineHeight: 18 },

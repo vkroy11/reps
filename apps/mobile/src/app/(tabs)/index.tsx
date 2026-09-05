@@ -10,7 +10,17 @@ import {
   type NoteWithContext,
   type ResumePoint,
 } from '@reps/core';
-import { Button, Card, GradientPanel, PipLogo, Text, color, space, useBreakpoint } from '@reps/ui';
+import {
+  ActionSheet,
+  Button,
+  Card,
+  GradientPanel,
+  PipLogo,
+  Text,
+  color,
+  space,
+  useBreakpoint,
+} from '@reps/ui';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -27,7 +37,7 @@ import { NextGateCard } from '../../features/today/NextGateCard';
 import { PracticeHeatmap, weeksThatFit } from '../../features/today/PracticeHeatmap';
 import { ResumeRows } from '../../features/today/ResumeRows';
 import { SaidShelf } from '../../features/today/SaidShelf';
-import { SavedShelf, savedItems } from '../../features/today/SavedShelf';
+import { SavedShelf, savedItems, type SavedItem } from '../../features/today/SavedShelf';
 import { Section } from '../../features/today/Section';
 import { TodayHeader, todayLabel } from '../../features/today/TodayHeader';
 import {
@@ -81,6 +91,8 @@ export default function TodayScreen() {
   const pathsById = usePathsFor(pathIds);
   const { notes } = useNotebook();
   const [openDay, setOpenDay] = useState<LocalDay | null>(null);
+  /** A locked shelf item the learner tapped, so we can say why rather than move them. */
+  const [lockedItem, setLockedItem] = useState<SavedItem | null>(null);
 
   const focusedSummary = paths.find((item) => item.id === focusedId) ?? null;
   const dailyMinutes = focusedSummary?.dailyMinutes ?? 20;
@@ -307,7 +319,14 @@ export default function TodayScreen() {
         ) : saved.length === 0 ? null : (
           <SavedShelf
             items={saved}
-            onOpen={(item) => router.push(`/technique/${item.techniqueId}`)}
+            /*
+              A locked technique is not a destination. Opening it would walk
+              the learner past a gate they have not cleared, so tapping one
+              explains instead of navigating.
+            */
+            onOpen={(item) =>
+              item.locked ? setLockedItem(item) : router.push(`/technique/${item.techniqueId}`)
+            }
           />
         )}
       </Section>
@@ -342,6 +361,25 @@ export default function TodayScreen() {
           />
         )}
       </View>
+
+      <ActionSheet
+        visible={lockedItem !== null}
+        onClose={() => setLockedItem(null)}
+        accessibilityLabel="This one is still locked"
+      >
+        <View style={styles.lockedSheet}>
+          <Text variant="heading">Not yet</Text>
+          <Text variant="body" tone="textSecondary">
+            {lockedItem?.blockedBy
+              ? `This is saved from “${lockedItem.techniqueTitle}”, which unlocks after you finish ${lockedItem.blockedBy}.`
+              : `This is saved from “${lockedItem?.techniqueTitle}”, which is still locked.`}
+          </Text>
+          <Text variant="caption" tone="textSecondary">
+            The order is the point — each technique assumes the one before it.
+          </Text>
+          <Button label="Got it" onPress={() => setLockedItem(null)} testID="locked-dismiss" />
+        </View>
+      </ActionSheet>
 
       <ScrollView
         style={styles.scroll}
@@ -402,4 +440,5 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', gap: space.base, paddingHorizontal: space.base },
   errorCard: { marginHorizontal: space.base, marginTop: space.sm, alignSelf: 'stretch' },
   errorLine: { marginTop: space.sm },
+  lockedSheet: { gap: space.md, paddingBottom: space.lg },
 });

@@ -612,6 +612,55 @@ describe('TodayScreen', () => {
       expect(mockPush).toHaveBeenCalledWith('/technique/tec_2');
     });
 
+    /**
+     * Curation runs on first open, so a locked technique can hold videos the
+     * learner has not earned. Opening one walked them straight past a gate.
+     */
+    it('explains a locked item instead of opening it', async () => {
+      mockPathState = {
+        path: {
+          ...guitarPath,
+          techniques: guitarPath.techniques.map((item) =>
+            item.id === 'tec_3'
+              ? { ...item, status: 'locked' as const, resources: [resource({ id: 'res_locked' })] }
+              : item,
+          ),
+        },
+        loading: false,
+      };
+      mockPathsById = { path_guitar: mockPathState.path!, path_chess: chessPath };
+
+      const { getByTestId, getByText } = await renderScreen(<TodayScreen />);
+      await fireEvent.press(getByTestId('saved-res_locked'));
+
+      expect(getByText('Not yet')).toBeOnTheScreen();
+      // The important half: it must not navigate past the gate.
+      expect(mockPush).not.toHaveBeenCalled();
+    });
+
+    it('names what has to be finished first', async () => {
+      mockPathState = {
+        path: {
+          ...guitarPath,
+          techniques: guitarPath.techniques.map((item) =>
+            item.id === 'tec_3'
+              ? { ...item, status: 'locked' as const, resources: [resource({ id: 'res_locked' })] }
+              : item,
+          ),
+        },
+        loading: false,
+      };
+      mockPathsById = { path_guitar: mockPathState.path!, path_chess: chessPath };
+
+      const { getByTestId, getByText } = await renderScreen(<TodayScreen />);
+      await fireEvent.press(getByTestId('saved-res_locked'));
+
+      // The locked technique, and the active one that gates it.
+      expect(
+        getByText(/Barre chords.*unlocks after you finish Chord transitions/),
+      ).toBeOnTheScreen();
+    });
+
     /** A finished technique is not "saved for later" - it is done. */
     it('drops a resource once its technique is complete', async () => {
       mockPathState = {
