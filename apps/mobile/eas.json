@@ -29,14 +29,14 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://reps-api.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://reps-api-a2lg.onrender.com"
       }
     },
     "production": {
       "channel": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://reps-api.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://reps-api-a2lg.onrender.com"
       }
     }
   },

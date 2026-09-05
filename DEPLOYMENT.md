@@ -59,11 +59,14 @@ from the branch.
 Then check it:
 
 ```bash
-curl https://reps-api.onrender.com/api/health
+curl https://reps-api-a2lg.onrender.com/api/health
 # {"status":"ok","uptime":...}
 ```
 
-Note the real hostname Render gives you — you need it in step 3.
+Note the real hostname Render gives you — you need it in step 3. Render appends
+a suffix when the service name is already taken, which is why this deploy is
+`reps-api-a2lg` and not `reps-api`. It has to match in three places: Vercel's
+`EXPO_PUBLIC_API_URL`, `eas.json`, and anything you curl.
 
 ### What the build does, and why
 
@@ -130,7 +133,7 @@ vercel
 # EXPO_PUBLIC_* variable into the bundle, so setting it later does nothing
 # until the next build.
 vercel env add EXPO_PUBLIC_API_URL production
-# paste: https://reps-api.onrender.com
+# paste: https://reps-api-a2lg.onrender.com
 
 vercel --prod
 ```
@@ -154,7 +157,7 @@ Then **Settings → Environment Variables**, for Production:
 
 | Variable              | Value                           |
 | --------------------- | ------------------------------- |
-| `EXPO_PUBLIC_API_URL` | `https://reps-api.onrender.com` |
+| `EXPO_PUBLIC_API_URL` | `https://reps-api-a2lg.onrender.com` |
 
 Add it **before** the first build, or redeploy after adding it. `vercel.json`
 already supplies the build command, output directory and rewrites, so those
@@ -189,9 +192,9 @@ Two things guard against it:
 Run it after any build you are about to ship:
 
 ```bash
-EXPO_PUBLIC_API_URL=https://reps-api.onrender.com npm run build:web
-EXPO_PUBLIC_API_URL=https://reps-api.onrender.com npm run verify:web
-# Web build points at https://reps-api.onrender.com (1 bundle(s) checked).
+EXPO_PUBLIC_API_URL=https://reps-api-a2lg.onrender.com npm run build:web
+EXPO_PUBLIC_API_URL=https://reps-api-a2lg.onrender.com npm run verify:web
+# Web build points at https://reps-api-a2lg.onrender.com (1 bundle(s) checked).
 ```
 
 On Vercel, make it part of the build so a bad bundle never deploys — set the
