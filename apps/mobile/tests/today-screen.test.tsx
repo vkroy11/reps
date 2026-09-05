@@ -215,22 +215,27 @@ describe('TodayScreen', () => {
       expect(page.getByTestId('start-rep')).toBeOnTheScreen();
     });
 
-    it('starts the rep in its own session rather than the technique page', async () => {
+    /**
+     * The CTA opens the technique, not the timer. Starting a session straight
+     * from Today skipped the lesson - which for a recall technique meant being
+     * dropped into a deck of answers you had never been taught.
+     */
+    it('opens the technique rather than starting a timer', async () => {
       const { getByTestId } = await renderScreen(<TodayScreen />);
       const page = within(getByTestId('hero-page-path_guitar'));
 
       await fireEvent.press(page.getByTestId('start-rep'));
 
-      expect(mockPush).toHaveBeenCalledWith('/practice/tec_2');
+      expect(mockPush).toHaveBeenCalledWith('/technique/tec_2');
     });
 
-    it('offers the detail page without making it the primary action', async () => {
+    it('offers the whole board as the secondary action', async () => {
       const { getByTestId } = await renderScreen(<TodayScreen />);
       const page = within(getByTestId('hero-page-path_guitar'));
 
       await fireEvent.press(page.getByText('See the details first'));
 
-      expect(mockPush).toHaveBeenCalledWith('/technique/tec_2');
+      expect(mockPush).toHaveBeenCalledWith('/(tabs)/path');
     });
 
     /** Which hobby, and how far in, in one line above the title. */
@@ -343,12 +348,12 @@ describe('TodayScreen', () => {
       expect(getAllByTestId('start-rep')).toHaveLength(2);
     });
 
-    it('starts the rep belonging to the page it was tapped on', async () => {
+    it('opens the technique belonging to the page it was tapped on', async () => {
       const { getAllByTestId } = await renderScreen(<TodayScreen />);
 
       await fireEvent.press(getAllByTestId('start-rep')[1]!);
 
-      expect(mockPush).toHaveBeenCalledWith('/practice/tec_c1');
+      expect(mockPush).toHaveBeenCalledWith('/technique/tec_c1');
     });
 
     /** A hobby not yet fetched gets a placeholder rather than a wrong page. */
