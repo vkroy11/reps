@@ -13,7 +13,14 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
 }
 
 function clientWith(fetchImpl: typeof fetch) {
-  return createApiClient({ baseUrl: 'http://api.test', deviceId: DEVICE_ID, fetchImpl });
+  // No retries by default: most tests are about what one call does, and the
+  // real schedule waits forty seconds. The retry tests opt back in.
+  return createApiClient({
+    baseUrl: 'http://api.test',
+    deviceId: DEVICE_ID,
+    fetchImpl,
+    retry: { attempts: 0 },
+  });
 }
 
 const suggestions = {
@@ -50,9 +57,8 @@ describe('createApiClient', () => {
 
   /** A shape change in the API must surface here, not three screens later. */
   it('rejects a response that does not match the contract', async () => {
-    const client = clientWith(
-      (async () => jsonResponse({ suggestions: { archetype: 'motor' } })) as typeof fetch,
-    );
+    const client = clientWith((async () =>
+      jsonResponse({ suggestions: { archetype: 'motor' } })) as typeof fetch);
 
     await expect(client.suggestions('guitar')).rejects.toMatchObject({
       code: 'UnexpectedResponse',
@@ -60,13 +66,11 @@ describe('createApiClient', () => {
   });
 
   it('maps the API error taxonomy onto ApiError', async () => {
-    const client = clientWith(
-      (async () =>
-        jsonResponse(
-          { error: 'QuotaExhausted', message: 'Daily quota for YouTube is exhausted' },
-          { status: 429 },
-        )) as typeof fetch,
-    );
+    const client = clientWith((async () =>
+      jsonResponse(
+        { error: 'QuotaExhausted', message: 'Daily quota for YouTube is exhausted' },
+        { status: 429 },
+      )) as typeof fetch);
 
     const error = await client.suggestions('guitar').catch((caught: unknown) => caught);
 
@@ -117,5 +121,107 @@ describe('createApiClient', () => {
     }) as unknown as typeof fetch);
 
     await expect(client.health()).resolves.toBe(false);
+  });
+
+  /**
+   * A free instance sleeps after fifteen minutes idle, and the request that
+   * wakes it fails while it boots. Before this, the first thing anyone saw
+   * after an hour away was a failure and a retry button.
+   */
+  describe('waking a sleeping host', () => {
+    function retrying(fetchImpl: typeof fetch, attempts = 4) {
+      return createApiClient({
+        baseUrl: 'http://api.test',
+        deviceId: DEVICE_ID,
+        fetchImpl,
+        // Real schedule, compressed: the arithmetic is the same, the waiting
+        // is not.
+        retry: { attempts, baseMs: 1 },
+      });
+    }
+
+    it('retries a read that could not connect, then succeeds', async () => {
+      let calls = 0;
+      const client = retrying((async () => {
+        calls += 1;
+        if (calls < 3) throw new TypeError('Network request failed');
+
+        return jsonResponse({ paths: [] });
+      }) as unknown as typeof fetch);
+
+      await expect(client.listPaths()).resolves.toEqual([]);
+      expect(calls).toBe(3);
+    });
+
+    /** A sleeping host answers through its router, not its app. */
+    it('retries a 503 from the router', async () => {
+      let calls = 0;
+      const client = retrying((async () => {
+        calls += 1;
+        if (calls < 2) return new Response('', { status: 503 });
+
+        return jsonResponse({ paths: [] });
+      }) as unknown as typeof fetch);
+
+      await expect(client.listPaths()).resolves.toEqual([]);
+      expect(calls).toBe(2);
+    });
+
+    it('gives up after four retries rather than hanging for ever', async () => {
+      let calls = 0;
+      const client = retrying((async () => {
+        calls += 1;
+        throw new TypeError('Network request failed');
+      }) as unknown as typeof fetch);
+
+      const error = (await client.listPaths().catch((c: unknown) => c)) as ApiError;
+
+      expect(error.code).toBe('NetworkError');
+      // The first attempt plus four retries.
+      expect(calls).toBe(5);
+    });
+
+    it('does not retry a real error from the app', async () => {
+      let calls = 0;
+      const client = retrying((async () => {
+        calls += 1;
+
+        return new Response(JSON.stringify({ error: 'NotFound' }), { status: 404 });
+      }) as unknown as typeof fetch);
+
+      await expect(client.listPaths()).rejects.toBeInstanceOf(ApiError);
+      expect(calls).toBe(1);
+    });
+
+    /**
+     * The load-bearing one. A request that timed out may still have been
+     * processed, so sending `reflect` again would credit the practice twice.
+     */
+    it('never re-sends a mutation', async () => {
+      let calls = 0;
+      const client = retrying((async () => {
+        calls += 1;
+        throw new TypeError('Network request failed');
+      }) as unknown as typeof fetch);
+
+      await expect(
+        client.reflect('tec_1', { confidence: 'solid', practiceMinutes: 20 }),
+      ).rejects.toBeInstanceOf(ApiError);
+      expect(calls).toBe(1);
+    });
+
+    /** Generates nothing and stores nothing, so it opts back in by hand. */
+    it('retries onboarding suggestions, which only reads', async () => {
+      let calls = 0;
+      const client = retrying((async () => {
+        calls += 1;
+        if (calls < 2) throw new TypeError('Network request failed');
+
+        return jsonResponse({ suggestions });
+      }) as unknown as typeof fetch);
+
+      await expect(client.suggestions('guitar')).resolves.toMatchObject({ archetype: 'motor' });
+      expect(calls).toBe(2);
+    });
   });
 });

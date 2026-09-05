@@ -39,10 +39,38 @@ export interface ApiClientOptions {
   getToken?: () => string | null;
   /** Injectable for tests. */
   fetchImpl?: typeof fetch;
+  /**
+   * How hard to try a sleeping host. Defaults to four retries over roughly
+   * forty seconds; tests set `attempts: 0` so they do not sit through it.
+   */
+  retry?: { attempts?: number; baseMs?: number };
 }
 
 /** Path generation runs a multi-stage model pipeline, so it gets a long leash. */
 const TIMEOUT_MS = { default: 15_000, generate: 90_000 } as const;
+
+/**
+ * Waking a sleeping host, without a button.
+ *
+ * The API sleeps after fifteen minutes idle on a free instance, and the
+ * request that wakes it fails while it boots - so the first thing anyone did
+ * after not using the app for an hour was watch it fail and press retry.
+ *
+ * Four retries at a factor of three covers roughly forty seconds of waiting,
+ * which is about how long a cold start takes. Ten evenly spaced retries would
+ * cover the same ground with far more requests at the sleeping host; a factor
+ * of two would give up after fifteen seconds, before it is awake.
+ */
+const RETRY = {
+  attempts: 4,
+  baseMs: 1_000,
+  factor: 3,
+} as const;
+
+/** Statuses that mean the request never reached the app. */
+const RETRYABLE_STATUS = new Set([502, 503, 504]);
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const ErrorBodySchema = z.object({
   error: z.string(),
@@ -54,7 +82,18 @@ export function createApiClient({
   deviceId,
   getToken,
   fetchImpl = fetch,
+  retry: retryPolicy,
 }: ApiClientOptions) {
+  const attempts = retryPolicy?.attempts ?? RETRY.attempts;
+  const baseMs = retryPolicy?.baseMs ?? RETRY.baseMs;
+
+  function retryDelay(attempt: number): number {
+    // Full jitter. Nothing here is high-traffic, but a fixed schedule means
+    // every screen that failed together also retries together.
+    const ceiling = baseMs * RETRY.factor ** attempt;
+
+    return Math.round(ceiling / 2 + Math.random() * (ceiling / 2));
+  }
   /**
    * The device id goes on every request, signed in or not: it is what a claim
    * and a sign-out act on. The bearer token, when there is one, decides which
@@ -70,23 +109,80 @@ export function createApiClient({
     };
   }
 
+  /**
+   * Whether a failed call may simply be sent again.
+   *
+   * Reads are, by definition. A mutation is not: a request that timed out may
+   * still have been processed, and sending `reflect` twice would credit the
+   * practice twice. The endpoints that are shaped like reads but posted -
+   * onboarding suggestions, which generates nothing and stores nothing - opt
+   * in by hand.
+   *
+   * This is also why the cold-start problem is worth solving here at all: the
+   * first call after the app opens is always a read.
+   */
+  function isRetryable(options: { method?: string; retry?: boolean }): boolean {
+    if (options.retry !== undefined) return options.retry;
+
+    const method = options.method ?? 'GET';
+
+    return method === 'GET' || method === 'HEAD';
+  }
+
+  async function send(
+    path: string,
+    options: {
+      method?: string;
+      body?: unknown;
+      timeoutMs?: number;
+      retry?: boolean;
+      json: boolean;
+    },
+  ): Promise<Response> {
+    const retryable = isRetryable(options);
+    let lastError: ApiError | null = null;
+
+    for (let attempt = 0; attempt <= attempts; attempt += 1) {
+      try {
+        const response = await fetchImpl(`${baseUrl}${path}`, {
+          method: options.method ?? 'GET',
+          headers: headers(options.json),
+          body: options.body === undefined ? undefined : JSON.stringify(options.body),
+          signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS.default),
+        });
+
+        // A sleeping host answers through its router, not its app, so these
+        // say "not awake yet" rather than "your request was wrong".
+        if (RETRYABLE_STATUS.has(response.status) && retryable && attempt < attempts) {
+          await wait(retryDelay(attempt));
+          continue;
+        }
+
+        return response;
+      } catch (error) {
+        // Offline, wrong LAN address, DNS, or the timeout above.
+        lastError = new ApiError('NetworkError', (error as Error).message);
+        if (!retryable || attempt === attempts) throw lastError;
+
+        await wait(retryDelay(attempt));
+      }
+    }
+
+    throw lastError ?? new ApiError('NetworkError', 'Request failed');
+  }
+
   async function request<Schema extends z.ZodType>(
     path: string,
-    options: { method?: string; body?: unknown; schema: Schema; timeoutMs?: number },
+    options: {
+      method?: string;
+      body?: unknown;
+      schema: Schema;
+      timeoutMs?: number;
+      /** Overrides the method-based default. See isRetryable. */
+      retry?: boolean;
+    },
   ): Promise<z.infer<Schema>> {
-    let response: Response;
-
-    try {
-      response = await fetchImpl(`${baseUrl}${path}`, {
-        method: options.method ?? 'GET',
-        headers: headers(true),
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
-        signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS.default),
-      });
-    } catch (error) {
-      // Offline, wrong LAN address, DNS, or the timeout above.
-      throw new ApiError('NetworkError', (error as Error).message);
-    }
+    const response = await send(path, { ...options, json: true });
 
     if (!response.ok) throw await toApiError(response);
 
@@ -114,17 +210,7 @@ export function createApiClient({
 
   /** For endpoints that answer 204: there is nothing to parse, only to check. */
   async function requestNoContent(path: string, method: string): Promise<void> {
-    let response: Response;
-
-    try {
-      response = await fetchImpl(`${baseUrl}${path}`, {
-        method,
-        headers: headers(false),
-        signal: AbortSignal.timeout(TIMEOUT_MS.default),
-      });
-    } catch (error) {
-      throw new ApiError('NetworkError', (error as Error).message);
-    }
+    const response = await send(path, { method, json: false });
 
     if (!response.ok) throw await toApiError(response);
   }
@@ -137,6 +223,13 @@ export function createApiClient({
         body: { skill },
         schema: z.object({ suggestions: OnboardingSuggestionsSchema }),
         timeoutMs: 30_000,
+        /*
+          A POST only because it carries a body: it generates suggestions and
+          stores nothing, so sending it twice costs a model call and changes
+          nothing. It is also the first request of a first-ever session, which
+          is exactly when the host is asleep.
+        */
+        retry: true,
       });
 
       return suggestions;
