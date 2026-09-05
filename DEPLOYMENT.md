@@ -93,8 +93,11 @@ npm run build:api                       # tsup -> one ESM file
 ### Things to know about the free plan
 
 - **It sleeps after 15 minutes idle.** The next request takes 30–60s while the
-  instance wakes. Warn anyone reviewing the deploy, or hit `/api/health` from an
-  uptime pinger to keep it warm.
+  instance wakes. `.github/workflows/keep-api-awake.yml` hits `/api/health`
+  every 10 minutes so that wait does not land on a learner. GitHub can drift a
+  few minutes past the schedule, and the workflow pauses if the repo sits idle
+  for 60 days — run it from **Actions → Keep API awake → Run workflow** if a
+  ping was missed.
 - **No shell access and an ephemeral disk.** Nothing is stored on the instance;
   all state is in Neon.
 

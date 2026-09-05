@@ -1,0 +1,38 @@
+# Render's free web service sleeps after 15 minutes idle. The next real
+# request then waits 30-60s for Node to boot, which is what the client
+# retry loop was written for.
+#
+# Hitting /api/health from here every 10 minutes keeps the instance warm
+# so learners do not pay that wait. The job itself has to survive a cold
+# start (first run after a missed tick, or after GitHub delayed the cron),
+# so the curl waits and retries instead of failing on the first 502.
+#
+# GitHub may drift a few minutes past the schedule, and scheduled workflows
+# pause if the repo has had no activity for 60 days. workflow_dispatch is
+# there so a missed tick can be fired by hand.
+
+name: Keep API awake
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Ping /api/health
+        env:
+          API_URL: https://reps-api-a2lg.onrender.com
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --max-time 90 \
+            --retry 4 \
+            --retry-all-errors \
+            --retry-delay 8 \
+            "${API_URL}/api/health"
