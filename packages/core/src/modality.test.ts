@@ -5,7 +5,9 @@ import {
   explainModalityOverride,
   generatedContentFormatFor,
   isModalityAllowedFor,
+  prefersReadingOnly,
   resolveFormats,
+  sourceFormats,
 } from './modality';
 
 describe('defaultModalityFor', () => {
@@ -91,6 +93,26 @@ describe('coerceModality', () => {
     expect(coerceModality('motor', 'drill')).toBe('drill');
     expect(coerceModality('motor', 'produce_and_critique')).toBe('produce_and_critique');
     expect(coerceModality('strategic', 'watch_and_do')).toBe('watch_and_do');
+  });
+});
+
+describe('sourceFormats', () => {
+  it('replaces video with reading when that is the only preference and the skill can be read', () => {
+    expect(sourceFormats('drill', ['article'])).toEqual(['article']);
+    expect(sourceFormats('flashcards', ['article'])).toEqual(['article', 'ai_lesson']);
+    expect(prefersReadingOnly(['article'])).toBe(true);
+  });
+
+  it('keeps a demo on a hands-on skill and adds an article as a complement', () => {
+    expect(sourceFormats('watch_and_do', ['article'])).toEqual(['video', 'drill', 'article']);
+    expect(sourceFormats('watch_and_do', ['video'])).toEqual(['video', 'article']);
+  });
+
+  it('still complements a mixed preference that already includes video', () => {
+    expect(sourceFormats('produce_and_critique', ['video', 'article'])).toEqual([
+      'video',
+      'article',
+    ]);
   });
 });
 

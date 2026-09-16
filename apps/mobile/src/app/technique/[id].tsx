@@ -1,5 +1,5 @@
 import { formatTimestamp } from '@reps/client';
-import type { Note, TechniqueContent } from '@reps/core';
+import type { Note, NoteAnchor, TechniqueContent } from '@reps/core';
 import { Button, Card, PipMascot, Skeleton, Text, color, space } from '@reps/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import ChevronLeft from 'lucide-react-native/icons/chevron-left';
@@ -10,7 +10,7 @@ import { AdaptSheet } from '../../features/techniques/AdaptSheet';
 import { NoteComposer } from '../../features/notes/NoteComposer';
 import { NoteRow } from '../../features/notes/NoteRow';
 import { useTechniqueNotes } from '../../features/notes/useNotes';
-import { SafeVideoPlayer } from '../../features/player/SafeVideoPlayer';
+import { LearnPanel } from '../../features/reader/LearnPanel';
 import { useTechnique, useTechniqueContent } from '../../features/techniques/useTechnique';
 
 /**
@@ -44,10 +44,16 @@ export default function TechniqueScreen() {
   const [composer, setComposer] = useState<{
     timestampSec: number | null;
     note: Note | null;
+    resourceId: string | null;
+    anchor: NoteAnchor | null;
+    stamp: string | null;
   } | null>(null);
   const [adapt, setAdapt] = useState<'too_hard' | 'skip' | null>(null);
+  const [jumpToParagraph, setJumpToParagraph] = useState<number | null>(null);
 
   const primaryResource = technique?.resources[0] ?? null;
+  const readablePrimary =
+    primaryResource?.format === 'article' || primaryResource?.format === 'ai_lesson';
 
   const registerPositionReader = useCallback((read: () => number) => {
     readPosition.current = read;
@@ -147,28 +153,28 @@ export default function TechniqueScreen() {
             </Text>
             <Text variant="body">{technique.whyItMatters}</Text>
 
-            {primaryResource ? (
+            {technique.resources.length > 0 ? (
               <>
                 <Text variant="overline" tone="textSecondary" style={styles.label}>
                   Learn
                 </Text>
-                <SafeVideoPlayer
-                  resource={primaryResource}
+                <LearnPanel
+                  resources={technique.resources}
                   onRegisterPositionReader={registerPositionReader}
                   onRegisterSeek={registerSeek}
+                  jumpTo={jumpToParagraph}
+                  onAddNote={(draft) =>
+                    setComposer({
+                      timestampSec: draft.timestampSec,
+                      resourceId: draft.resourceId,
+                      anchor: draft.anchor,
+                      stamp: draft.stamp,
+                      note: null,
+                    })
+                  }
                 />
-                <Text variant="label" numberOfLines={2} style={styles.resourceTitle}>
-                  {primaryResource.title}
-                </Text>
-                <Text variant="caption" tone="textSecondary">
-                  {primaryResource.source}
-                </Text>
-                {/* The one line that justifies this pick over the others. */}
-                <Text variant="caption" tone="textSecondary" style={styles.reason}>
-                  {primaryResource.selectionReason}
-                </Text>
 
-                {jumpTo !== null && !Number.isNaN(jumpTo) ? (
+                {jumpTo !== null && !Number.isNaN(jumpTo) && !readablePrimary ? (
                   <View style={styles.jumped}>
                     <Text variant="caption" tone="textOnBrand">
                       Jumped to your note · {formatTimestamp(jumpTo)}
@@ -181,7 +187,12 @@ export default function TechniqueScreen() {
                   variant="secondary"
                   onPress={() =>
                     setComposer({
-                      timestampSec: Math.floor(readPosition.current?.() ?? 0),
+                      timestampSec: readablePrimary
+                        ? null
+                        : Math.floor(readPosition.current?.() ?? 0),
+                      resourceId: primaryResource?.id ?? null,
+                      anchor: null,
+                      stamp: null,
                       note: null,
                     })
                   }
@@ -199,7 +210,7 @@ export default function TechniqueScreen() {
                 <Text variant="caption" tone="textSecondary">
                   {technique.modality === 'flashcards'
                     ? 'No lesson found for this one yet — the deck below is the practice. Reps will look again next time you open it.'
-                    : `Nothing worth watching for this one — it’s a ${technique.modality.replace(/_/g, ' ')} technique, so the practice below is the lesson.`}
+                    : 'Nothing to watch or read for this one yet — the practice below is the lesson.'}
                 </Text>
               </Card>
             )}
@@ -272,9 +283,22 @@ export default function TechniqueScreen() {
                 <NoteRow
                   key={note.id}
                   note={note}
-                  onSeek={primaryResource ? (seconds) => seekRef.current?.(seconds) : undefined}
+                  onSeek={
+                    primaryResource
+                      ? (seconds) => {
+                          if (readablePrimary) setJumpToParagraph(seconds);
+                          else seekRef.current?.(seconds);
+                        }
+                      : undefined
+                  }
                   onEdit={(target) =>
-                    setComposer({ timestampSec: target.timestampSec, note: target })
+                    setComposer({
+                      timestampSec: target.timestampSec,
+                      resourceId: target.resourceId,
+                      anchor: target.anchor ?? null,
+                      stamp: target.anchor?.quote ?? null,
+                      note: target,
+                    })
                   }
                 />
               ))
@@ -284,7 +308,15 @@ export default function TechniqueScreen() {
               <Button
                 label="Add a note"
                 variant="secondary"
-                onPress={() => setComposer({ timestampSec: null, note: null })}
+                onPress={() =>
+                  setComposer({
+                    timestampSec: null,
+                    resourceId: null,
+                    anchor: null,
+                    stamp: null,
+                    note: null,
+                  })
+                }
                 style={styles.addNote}
                 testID="add-note"
               />
@@ -341,6 +373,7 @@ export default function TechniqueScreen() {
       <NoteComposer
         visible={composer !== null}
         timestampSec={composer?.timestampSec ?? null}
+        stamp={composer?.stamp}
         initialBody={composer?.note?.body ?? ''}
         onClose={() => setComposer(null)}
         onSubmit={async (body) => {
@@ -352,8 +385,9 @@ export default function TechniqueScreen() {
 
           await add({
             body,
-            resourceId: primaryResource?.id ?? null,
+            resourceId: composer?.resourceId ?? primaryResource?.id ?? null,
             timestampSec: composer?.timestampSec ?? null,
+            ...(composer?.anchor ? { anchor: composer.anchor } : {}),
           });
         }}
       />
@@ -436,8 +470,6 @@ const styles = StyleSheet.create({
   label: { marginTop: space.base },
   gap: { marginTop: space.sm },
   locked: { marginTop: space.base },
-  resourceTitle: { marginTop: space.sm },
-  reason: { marginTop: space.xs, marginBottom: space.sm },
   addNote: { marginTop: space.sm },
   start: { marginTop: space.md },
   jumped: {

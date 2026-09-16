@@ -7,6 +7,8 @@ export interface NoteComposerProps {
   visible: boolean;
   /** Null when the note is about the technique rather than a moment in a video. */
   timestampSec: number | null;
+  /** Overrides the timestamp chip, e.g. a highlighted paragraph. */
+  stamp?: string | null;
   initialBody?: string;
   onSubmit: (body: string) => Promise<void> | void;
   onClose: () => void;
@@ -22,6 +24,7 @@ export interface NoteComposerProps {
 export function NoteComposer({
   visible,
   timestampSec,
+  stamp,
   initialBody = '',
   onSubmit,
   onClose,
@@ -52,10 +55,10 @@ export function NoteComposer({
       <View style={styles.body}>
         <View style={styles.head}>
           <Text variant="heading">{initialBody ? 'Edit note' : 'Note'}</Text>
-          {timestampSec !== null ? (
+          {stamp || timestampSec !== null ? (
             <View style={styles.stamp}>
-              <Text variant="caption" tone="brandPressed">
-                at {formatTimestamp(timestampSec)}
+              <Text variant="caption" tone="brandPressed" numberOfLines={1}>
+                {stamp ?? `at ${formatTimestamp(timestampSec ?? 0)}`}
               </Text>
             </View>
           ) : null}

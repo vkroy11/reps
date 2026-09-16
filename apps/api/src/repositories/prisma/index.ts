@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import {
   TechniqueContentSchema,
   ResourceCandidateSchema,
+  NoteAnchorSchema,
   type Badge,
   type Confidence,
   type LearningPathSummary,
@@ -29,6 +30,7 @@ interface NoteRow {
   techniqueId: string;
   resourceId: string | null;
   timestampSec: number | null;
+  anchor: unknown;
   body: string;
   createdAt: Date;
   updatedAt: Date;
@@ -66,12 +68,15 @@ function toDomainUser(row: UserRow): User {
 }
 
 function toDomainNote(row: NoteRow): Note {
+  const parsed = NoteAnchorSchema.safeParse(row.anchor);
+
   return {
     id: row.id,
     userId: row.userId,
     techniqueId: row.techniqueId,
     resourceId: row.resourceId,
     timestampSec: row.timestampSec,
+    anchor: parsed.success ? parsed.data : null,
     body: row.body,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -397,6 +402,7 @@ export function createPrismaRepositories(prisma: PrismaClient): Repositories {
             techniqueId: note.techniqueId,
             resourceId: note.resourceId,
             timestampSec: note.timestampSec,
+            anchor: note.anchor ?? undefined,
             body: note.body,
           },
         });

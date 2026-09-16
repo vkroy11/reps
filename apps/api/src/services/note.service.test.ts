@@ -66,6 +66,26 @@ describe('note service', () => {
     expect(note.timestampSec).toBe(222);
   });
 
+  it('stores an article highlight without dropping timestampSec, so older apps still parse the note', async () => {
+    const resource = first().resources.find((item) => item.format === 'article') ?? first().resources[0];
+    if (!resource) throw new Error('fixture technique has no resources');
+
+    const note = await services.notes.create(USER, {
+      techniqueId: first().id,
+      resourceId: resource.id,
+      timestampSec: 2,
+      anchor: { kind: 'highlight', start: 2, quote: 'Move the whole hand as a shape.' },
+      body: 'this is the bit that was stalling',
+    });
+
+    expect(note.timestampSec).toBe(2);
+    expect(note.anchor).toEqual({
+      kind: 'highlight',
+      start: 2,
+      quote: 'Move the whole hand as a shape.',
+    });
+  });
+
   /** A timestamp is meaningless without the resource it points into. */
   it('drops a timestamp when no resource is named', async () => {
     const note = await services.notes.create(USER, {

@@ -106,6 +106,8 @@ model Resource {
   source          String
   durationSec     Int?
   selectionReason String
+  /// Extracted article text. Null on videos and on rows from before this existed.
+  body            String?
 
   technique Technique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
 
@@ -133,6 +135,8 @@ model Note {
   techniqueId  String
   resourceId   String?
   timestampSec Int?
+  /// { kind, start, end, quote }. timestampSec stays the sortable position.
+  anchor       Json?
   body         String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

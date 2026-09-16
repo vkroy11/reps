@@ -87,6 +87,7 @@ export function toDomainPath(row: PathWithTechniques, totals: PathTotals = EMPTY
           source: resource.source,
           durationSec: resource.durationSec,
           selectionReason: resource.selectionReason,
+          body: resource.body ?? null,
         })),
       })),
     xp: totals.xp,
@@ -124,5 +125,6 @@ export function toResourceRow(resource: Resource) {
     source: resource.source,
     durationSec: resource.durationSec,
     selectionReason: resource.selectionReason,
+    body: resource.body ?? null,
   };
 }
