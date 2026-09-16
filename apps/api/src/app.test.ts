@@ -437,6 +437,21 @@ describe('API', () => {
       expect(response.body.awarded.xp).toBe(34);
       expect(response.body.path.techniques[0].status).toBe('active');
     });
+
+    it('accepts another session on a technique that is already completed', async () => {
+      const path = await newPath();
+      await reflect(path.techniques[0].id, { confidence: 'solid', practiceMinutes: 10 });
+
+      const response = await reflect(path.techniques[0].id, {
+        confidence: 'solid',
+        practiceMinutes: 8,
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.path.techniques[0].status).toBe('completed');
+      expect(response.body.path.techniques[1].status).toBe('active');
+      expect(response.body.awarded.badge).toBeNull();
+    });
   });
 
   describe('practice history', () => {

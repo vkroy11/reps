@@ -99,15 +99,24 @@ export function createTechniqueService(deps: {
     ): Promise<ReflectResult> {
       const { path, technique } = await locate(userId, techniqueId);
 
-      if (technique.status !== 'active') {
+      /*
+        Completed is allowed: "Practise again" is a real session, not a peek.
+        Locked and skipped are not — those have not been opened as the current
+        rep, and reflecting on them would complete work the learner has not done.
+      */
+      const alreadyCompleted = technique.status === 'completed';
+
+      if (technique.status !== 'active' && !alreadyCompleted) {
         throw new ConflictError(
-          `Technique '${techniqueId}' is ${technique.status}; only an active technique can be reflected on`,
+          `Technique '${techniqueId}' is ${technique.status}; only an active or completed technique can be reflected on`,
         );
       }
 
       const struggleCount =
-        input.confidence === 'struggling' ? technique.struggleCount + 1 : technique.struggleCount;
-      const completed = input.confidence === 'solid';
+        alreadyCompleted || input.confidence !== 'struggling'
+          ? technique.struggleCount
+          : technique.struggleCount + 1;
+      const newlyCompleted = !alreadyCompleted && input.confidence === 'solid';
 
       // Recorded before the path is saved, and for every confidence - practice
       // that felt bad is still practice, and only paying for "solid" would be
@@ -134,19 +143,22 @@ export function createTechniqueService(deps: {
                 ...candidate,
                 confidence: input.confidence,
                 struggleCount,
-                status: completed ? ('completed' as const) : candidate.status,
+                status: newlyCompleted ? ('completed' as const) : candidate.status,
               }
             : candidate,
         ),
       );
 
       const saved = await deps.repositories.paths.save({ ...path, techniques });
-      const badge = completed ? await awardGate(userId, saved, technique) : null;
+      const badge = newlyCompleted ? await awardGate(userId, saved, technique) : null;
 
       return {
         // Re-read only when a badge landed, so the response carries it.
         path: badge ? ((await deps.repositories.paths.findById(saved.id)) ?? saved) : saved,
-        intervention: !completed && struggleCount >= STRUGGLE_THRESHOLD ? 'offer_bridge' : null,
+        intervention:
+          !alreadyCompleted && !newlyCompleted && struggleCount >= STRUGGLE_THRESHOLD
+            ? 'offer_bridge'
+            : null,
         awarded: { xp, minutes, badge },
       };
     },

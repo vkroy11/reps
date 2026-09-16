@@ -15,6 +15,8 @@ export interface ReflectStepProps {
   minutes: number;
   onReflect: (confidence: Confidence) => void;
   saving: boolean;
+  /** True when this technique is already mastered — the path will not move. */
+  repeat?: boolean;
 }
 
 /** Each answer states its consequence, so honesty has a visible payoff. */
@@ -48,6 +50,12 @@ const OPTIONS: {
   },
 ];
 
+const REPEAT_CONSEQUENCES: Record<Confidence, string> = {
+  struggling: 'Logged. This one stays mastered — come back to it whenever.',
+  getting_there: 'Logged. This one stays mastered — the path does not move.',
+  solid: 'Logged another session. The path stays as it is.',
+};
+
 /**
  * How did that go?
  *
@@ -60,7 +68,7 @@ const OPTIONS: {
  * confidence rather than on how much of a video was watched, which is the
  * product's whole argument about what learning is.
  */
-export function ReflectStep({ minutes, onReflect, saving }: ReflectStepProps) {
+export function ReflectStep({ minutes, onReflect, saving, repeat = false }: ReflectStepProps) {
   return (
     <View style={styles.wrap}>
       <Text variant="title" center>
@@ -75,7 +83,10 @@ export function ReflectStep({ minutes, onReflect, saving }: ReflectStepProps) {
       {OPTIONS.map((option) => (
         <ConfidenceCard
           key={option.value}
-          option={option}
+          option={{
+            ...option,
+            consequence: repeat ? REPEAT_CONSEQUENCES[option.value] : option.consequence,
+          }}
           disabled={saving}
           onPress={() => onReflect(option.value)}
         />

@@ -248,6 +248,23 @@ eas build --platform android --profile preview
 that inlines `localhost` produces an APK that talks to the phone itself and
 fails every request. EAS caches too, so the same transform-cache trap applies.
 
+### Shipping a JS fix without a new APK
+
+The preview and production binaries include `expo-updates`. After the first
+build that contains that native module, a JavaScript-only fix ships with:
+
+```bash
+cd apps/mobile
+npm run update:preview       # testers on the preview APK
+npm run update:production    # store / production channel
+```
+
+Runtime version follows `expo.version` in `app.json` (`0.1.0` today). An update
+only lands on binaries with the same runtime version — bumping `version`
+requires a new native build, then updates resume against that version.
+
+Web is not on this path; Vercel still deploys the static export.
+
 ---
 
 ## The env var map

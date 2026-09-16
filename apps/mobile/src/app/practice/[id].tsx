@@ -44,7 +44,8 @@ export default function PracticeScreen() {
     which content to ask for - and firing first would fetch the stored deck the
     learner has already been through.
   */
-  const repeat = (technique?.practiceMinutes ?? 0) > 0;
+  const alreadyCompleted = technique?.status === 'completed';
+  const repeat = alreadyCompleted || (technique?.practiceMinutes ?? 0) > 0;
   const { content, loading: contentLoading } = useTechniqueContent(
     technique ? (id ?? null) : null,
     {
@@ -96,10 +97,10 @@ export default function PracticeScreen() {
         confidence,
       });
 
-      // Only a completion is worth a celebration. "Getting there" and
-      // "struggling" go straight back, because nothing was unlocked and
-      // confetti over an unfinished technique would be a lie.
-      if (confidence === 'solid') setStage('celebrating');
+      // Only a *first* completion is worth a celebration. Repeating a
+      // mastered technique still records the session; confetti over an
+      // already-unlocked node would be a lie.
+      if (confidence === 'solid' && !alreadyCompleted) setStage('celebrating');
       else router.back();
     } catch (caught) {
       setError(
@@ -189,7 +190,12 @@ export default function PracticeScreen() {
 
         {technique && stage === 'reflecting' ? (
           <>
-            <ReflectStep minutes={minutes} onReflect={reflect} saving={saving} />
+            <ReflectStep
+              minutes={minutes}
+              onReflect={reflect}
+              saving={saving}
+              repeat={alreadyCompleted}
+            />
 
             {error ? (
               <Card style={styles.error}>

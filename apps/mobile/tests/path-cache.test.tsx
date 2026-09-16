@@ -214,6 +214,23 @@ describe('path cache', () => {
       // later read as "this is all the paths there are".
       expect(view.result.current.summaries).toBeNull();
     });
+
+    it('inserts a path that was not in the list, so a new hobby appears without a refetch', async () => {
+      const view = await renderHook(() => ({ list: usePathList(), cache: usePathCache() }), {
+        wrapper,
+      });
+
+      await waitFor(() => expect(view.result.current.list.paths).toHaveLength(1));
+
+      const chess = { ...path(['active']), id: 'path_chess', skill: 'chess' };
+      await act(async () => view.result.current.cache.applyPath(chess));
+
+      expect(view.result.current.list.paths.map((item) => item.id)).toEqual([
+        'path_chess',
+        'path_guitar',
+      ]);
+      expect(mockListPaths).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('when a technique is curated', () => {

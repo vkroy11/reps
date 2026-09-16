@@ -10,7 +10,7 @@ import { AdaptSheet } from '../../features/techniques/AdaptSheet';
 import { NoteComposer } from '../../features/notes/NoteComposer';
 import { NoteRow } from '../../features/notes/NoteRow';
 import { useTechniqueNotes } from '../../features/notes/useNotes';
-import { VideoPlayer } from '../../features/player/VideoPlayer';
+import { SafeVideoPlayer } from '../../features/player/SafeVideoPlayer';
 import { useTechnique, useTechniqueContent } from '../../features/techniques/useTechnique';
 
 /**
@@ -152,7 +152,7 @@ export default function TechniqueScreen() {
                 <Text variant="overline" tone="textSecondary" style={styles.label}>
                   Learn
                 </Text>
-                <VideoPlayer
+                <SafeVideoPlayer
                   resource={primaryResource}
                   onRegisterPositionReader={registerPositionReader}
                   onRegisterSeek={registerSeek}

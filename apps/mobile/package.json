@@ -9,6 +9,8 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build:web": "expo export --platform web --clear",
+    "update:preview": "eas update --channel preview --environment preview",
+    "update:production": "eas update --channel production",
     "typecheck": "tsc --noEmit",
     "test": "jest --passWithNoTests"
   },
@@ -38,6 +40,7 @@
     "expo-status-bar": "~57.0.1",
     "expo-symbols": "~57.0.2",
     "expo-system-ui": "~57.0.3",
+    "expo-updates": "~57.0.22",
     "expo-web-browser": "~57.0.2",
     "lucide-react-native": "^1.39.0",
     "react": "19.2.3",

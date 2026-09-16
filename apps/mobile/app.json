@@ -24,6 +24,15 @@
       "output": "static",
       "favicon": "./assets/brand/favicon.png"
     },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9481ccde-e9f7-4d35-9a00-c19d8c1b3ada",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "plugins": [
       [
         "expo-router",
@@ -45,7 +54,8 @@
         {
           "color": "#2563EB"
         }
-      ]
+      ],
+      "expo-updates"
     ],
     "experiments": {
       "typedRoutes": true,

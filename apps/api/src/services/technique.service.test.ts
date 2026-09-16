@@ -90,6 +90,40 @@ describe('technique service', () => {
     ).rejects.toMatchObject({ code: 'Conflict' });
   });
 
+  it('records another session on a completed technique without reopening it', async () => {
+    const first = await services.techniques.reflect(USER_ID, techniqueAt(path, 0).id, {
+      confidence: 'solid',
+      practiceMinutes: 10,
+    });
+    expect(techniqueAt(first.path, 0).status).toBe('completed');
+    expect(techniqueAt(first.path, 1).status).toBe('active');
+
+    const repeat = await services.techniques.reflect(USER_ID, techniqueAt(first.path, 0).id, {
+      confidence: 'solid',
+      practiceMinutes: 8,
+    });
+
+    expect(techniqueAt(repeat.path, 0).status).toBe('completed');
+    expect(techniqueAt(repeat.path, 1).status).toBe('active');
+    expect(repeat.intervention).toBeNull();
+    expect(repeat.awarded.badge).toBeNull();
+    expect(techniqueAt(repeat.path, 0).practiceMinutes).toBe(18);
+  });
+
+  it('does not offer a bridge when a completed technique is practised again as a struggle', async () => {
+    const completed = await services.techniques.reflect(USER_ID, techniqueAt(path, 0).id, {
+      confidence: 'solid',
+    });
+
+    const repeat = await services.techniques.reflect(USER_ID, techniqueAt(completed.path, 0).id, {
+      confidence: 'struggling',
+    });
+
+    expect(repeat.intervention).toBeNull();
+    expect(techniqueAt(repeat.path, 0).status).toBe('completed');
+    expect(techniqueAt(repeat.path, 0).struggleCount).toBe(0);
+  });
+
   describe('too hard', () => {
     it('inserts an easier step in front instead of removing the technique', async () => {
       const hard = techniqueAt(path, 0);

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StageList, type Stage, type StageState } from '../features/onboarding/StageList';
+import { usePathCache } from '../features/paths/path-cache';
 import { useApp } from '../providers/app-provider';
 
 const STAGE_LABELS = ['Planning techniques', 'Finding resources', 'Picking the best ones'] as const;
@@ -25,6 +26,7 @@ export default function GeneratingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { draft, api, focusPath, clearDraft, markOnboarded } = useApp();
+  const { applyPath } = usePathCache();
 
   const [elapsed, setElapsed] = useState(0);
   const [path, setPath] = useState<LearningPath | null>(null);
@@ -43,6 +45,12 @@ export default function GeneratingScreen() {
     try {
       const created = await api.createPath(input);
       setPath(created);
+      /*
+        Tabs stay mounted behind this screen, and ensureList will not refetch
+        once it already has a list. Fold the new path into the cache here or
+        the hobby is missing until the app is killed.
+      */
+      applyPath(created);
       // The new path becomes the focus, and the draft has served its purpose.
       focusPath(created.id);
       // This is the one moment we know for certain a path exists, so it is the
@@ -59,7 +67,7 @@ export default function GeneratingScreen() {
     } finally {
       setRunning(false);
     }
-  }, [api, input, focusPath, clearDraft, markOnboarded]);
+  }, [api, input, applyPath, focusPath, clearDraft, markOnboarded]);
 
   // Kick off automatically: arriving here is the learner asking for a path.
   useEffect(() => {
