@@ -130,10 +130,7 @@ describeIfDatabase('prisma repositories', () => {
     const path = samplePath();
     await repositories.paths.save({
       ...path,
-      techniques: [
-        { ...path.techniques[0]!, status: 'completed' },
-        path.techniques[1]!,
-      ],
+      techniques: [{ ...path.techniques[0]!, status: 'completed' }, path.techniques[1]!],
     });
 
     const [summary] = await repositories.paths.listByUser(userId);

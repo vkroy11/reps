@@ -46,7 +46,10 @@ export function toDomainBadge(row: BadgeRow): Badge {
  * schema parses them on the way out. If a bad value ever reaches the database,
  * it surfaces here rather than somewhere further downstream.
  */
-export function toDomainPath(row: PathWithTechniques, totals: PathTotals = EMPTY_TOTALS): LearningPath {
+export function toDomainPath(
+  row: PathWithTechniques,
+  totals: PathTotals = EMPTY_TOTALS,
+): LearningPath {
   return LearningPathSchema.parse({
     id: row.id,
     userId: row.userId,
