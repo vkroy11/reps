@@ -276,11 +276,16 @@ describe('TechniqueScreen notes', () => {
       });
     });
 
-    it('says why there is no video instead of showing an empty player', async () => {
+    /*
+      The copy moved when reading material arrived: a missing resource used to
+      be explained by the modality ("it's a flashcards technique"), and now
+      means the search found nothing. The assertion is on the promise the
+      screen makes - the practice is still there - not on the sentence.
+    */
+    it('says why there is nothing to open instead of showing an empty player', async () => {
       const { getByText } = await renderScreen(<TechniqueScreen />);
 
-      // The fixture is watch_and_do, so the explanation is the modality one.
-      expect(getByText(/Nothing worth watching for this one/)).toBeOnTheScreen();
+      expect(getByText(/Nothing to watch or read for this one yet/)).toBeOnTheScreen();
     });
   });
 
