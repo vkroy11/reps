@@ -1,12 +1,13 @@
 import { formatTimestamp } from '@reps/client';
 import type { Note, NoteAnchor, TechniqueContent } from '@reps/core';
-import { Button, Card, PipMascot, Skeleton, Text, color, space } from '@reps/ui';
+import { Button, Card, PipMascot, Text, color, space } from '@reps/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import ChevronLeft from 'lucide-react-native/icons/chevron-left';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AdaptSheet } from '../../features/techniques/AdaptSheet';
+import { TechniqueSkeleton } from '../../features/techniques/TechniqueSkeleton';
 import { NoteComposer } from '../../features/notes/NoteComposer';
 import { NoteRow } from '../../features/notes/NoteRow';
 import { useTechniqueNotes } from '../../features/notes/useNotes';
@@ -102,13 +103,7 @@ export default function TechniqueScreen() {
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xxl }]}
       >
-        {loading ? (
-          <>
-            <Skeleton height={18} width="45%" />
-            <Skeleton height={80} delay={80} />
-            <Skeleton height={180} delay={160} />
-          </>
-        ) : null}
+        {loading ? <TechniqueSkeleton /> : null}
 
         {error ? (
           <Card>
