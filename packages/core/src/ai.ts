@@ -50,6 +50,8 @@ export const RankedResourcesSchema = z.object({
     .min(1)
     .max(2),
 });
+// 1 video + 1 article is the complement pair; the curator may then append a
+// generated lesson if nothing readable was found.
 export type RankedResources = z.infer<typeof RankedResourcesSchema>;
 
 export const LessonContentSchema = z.object({

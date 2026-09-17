@@ -42,6 +42,11 @@ export const ResourceSchema = z.object({
   durationSec: z.number().int().nonnegative().nullable(),
   /** One line on why this resource was chosen for this learner. */
   selectionReason: z.string(),
+  /**
+   * Extracted article body (markdown-ish plain text). Absent on videos and on
+   * responses from older servers; new clients treat missing as "no body yet".
+   */
+  body: z.string().nullable().optional(),
 });
 export type Resource = z.infer<typeof ResourceSchema>;
 
@@ -125,14 +130,44 @@ export type LearningPathSummary = z.infer<typeof LearningPathSummarySchema>;
  * timestamp inside it. That is the whole point: six weeks later you reread
  * three lines instead of rewatching eight minutes.
  */
+/**
+ * Where a note points inside its resource.
+ *
+ * Additive and optional so older apps keep working: they already persist and
+ * render `timestampSec` (seconds in a video). New clients set both. For an
+ * article, `timestampSec` is the paragraph index so a client that only knows
+ * that field still has a number it can sort and jump with.
+ */
+export const noteAnchorKinds = ['time', 'paragraph', 'highlight'] as const;
+export const NoteAnchorKindSchema = z.enum(noteAnchorKinds);
+export type NoteAnchorKind = z.infer<typeof NoteAnchorKindSchema>;
+
+export const NoteAnchorSchema = z.object({
+  kind: NoteAnchorKindSchema,
+  /** Paragraph index, or a character offset into the extracted body. */
+  start: z.number().int().nonnegative().optional(),
+  end: z.number().int().nonnegative().optional(),
+  /** The selected text, when this is a highlight. */
+  quote: z.string().min(1).max(500).optional(),
+});
+export type NoteAnchor = z.infer<typeof NoteAnchorSchema>;
+
 export const NoteSchema = z.object({
   id: z.string(),
   userId: z.string(),
   techniqueId: z.string(),
   /** Set when the note was taken against a particular video or lesson. */
   resourceId: z.string().nullable(),
-  /** Seconds into that resource. Tapping the note seeks the player here. */
+  /**
+   * Position in the resource. Seconds for a video; paragraph index for an
+   * article. Older apps only understand this field, so it is never removed.
+   */
   timestampSec: z.number().int().nonnegative().nullable(),
+  /**
+   * Richer position for article highlights. Older apps strip unknown keys, so
+   * this can appear without breaking them.
+   */
+  anchor: NoteAnchorSchema.nullable().optional(),
   body: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),

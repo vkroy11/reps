@@ -15,8 +15,12 @@ export function normalizeQuery(text: string): string {
     .join(' ');
 }
 
-export function resourceCacheKey(text: string, language: string): string {
-  const normalized = `${normalizeQuery(text)}|${language.toLowerCase()}`;
+export function resourceCacheKey(
+  text: string,
+  language: string,
+  format: string = 'video',
+): string {
+  const normalized = `${normalizeQuery(text)}|${language.toLowerCase()}|${format}`;
 
   return createHash('sha256').update(normalized).digest('hex').slice(0, 32);
 }

@@ -98,6 +98,50 @@ export function resolveFormats(
   return overlap.length > 0 ? overlap : [...supported];
 }
 
+const READING_FORMATS: readonly ContentFormat[] = ['article', 'ai_lesson'];
+
+/** True when every stated preference is something you read, not watch or drill. */
+export function prefersReadingOnly(preferredFormats: readonly ContentFormat[]): boolean {
+  return (
+    preferredFormats.length > 0 &&
+    preferredFormats.every((format) => READING_FORMATS.includes(format))
+  );
+}
+
+export function isHandsOnModality(modality: Modality): boolean {
+  return HANDS_ON_MODALITIES.includes(modality);
+}
+
+/**
+ * Formats the curator should actually search for.
+ *
+ * Reading-only preference replaces video when the modality can be read
+ * (strategy, recall). Hands-on skills still get a video — reading about a
+ * chord change does not teach it — and an article rides along as a complement.
+ * Mixed or video preferences also get an article alongside the demo.
+ */
+export function sourceFormats(
+  modality: Modality,
+  preferredFormats: readonly ContentFormat[],
+): ContentFormat[] {
+  const resolved = resolveFormats(modality, preferredFormats);
+  const readOnly = prefersReadingOnly(preferredFormats);
+  const handsOn = isHandsOnModality(modality);
+
+  if (readOnly && !handsOn) {
+    const reading = resolved.filter((format) => READING_FORMATS.includes(format));
+    if (!reading.includes('article')) return ['article', ...reading];
+    return reading;
+  }
+
+  const sourced = [...resolved];
+  if ((sourced.includes('video') || handsOn) && !sourced.includes('article')) {
+    sourced.push('article');
+  }
+
+  return sourced;
+}
+
 /**
  * The explanation shown when a technique ignores a stated preference. Returns
  * null when nothing was overridden, so the UI stays quiet in the common case.

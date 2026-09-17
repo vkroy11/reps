@@ -179,6 +179,7 @@ export function rankResourcesPrompt(input: RankResourcesInput): string {
   const candidates = input.candidates.map((candidate) =>
     [
       `id: ${candidate.id}`,
+      `format: ${candidate.format}`,
       `title: ${candidate.title}`,
       `source: ${candidate.source}`,
       candidate.durationSec === null
@@ -202,10 +203,12 @@ export function rankResourcesPrompt(input: RankResourcesInput): string {
     '',
     candidates.join('\n---\n'),
     '',
-    'Pick the best 1-2 candidates for THIS technique at THIS level. Prefer short,',
-    'demonstration-heavy resources that fit the daily time budget. Reject channel',
-    'trailers, hour-long lectures, clickbait, and anything that teaches the wrong',
-    'level. Use only the ids listed above.',
+    'Pick the best 1-2 candidates for THIS technique at THIS level.',
+    'If both video and article candidates are listed, pick one of each — a short',
+    'demo plus something to read. If only one format is listed, pick in that format.',
+    'Prefer short, demonstration-heavy resources that fit the daily time budget.',
+    'Reject channel trailers, hour-long lectures, clickbait, encyclopedia stubs,',
+    'and anything that teaches the wrong level. Use only the ids listed above.',
     '',
     'For each pick, give a one-line reason addressed to the learner explaining why',
     'this one and not the others.',

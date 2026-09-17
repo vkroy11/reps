@@ -51,6 +51,7 @@ export function createNoteService(deps: {
         techniqueId: technique.id,
         resourceId,
         timestampSec: resourceId === null ? null : (input.timestampSec ?? null),
+        anchor: resourceId === null ? null : (input.anchor ?? null),
         body: input.body.trim(),
         createdAt: now,
         updatedAt: now,

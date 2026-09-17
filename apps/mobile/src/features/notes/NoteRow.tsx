@@ -18,6 +18,7 @@ export interface NoteRowProps {
  * not just a record of it.
  */
 export function NoteRow({ note, onSeek, onEdit }: NoteRowProps) {
+  const stamp = stampFor(note);
   const seekable = note.timestampSec !== null && onSeek !== undefined;
 
   return (
@@ -25,7 +26,7 @@ export function NoteRow({ note, onSeek, onEdit }: NoteRowProps) {
       accessibilityRole="button"
       accessibilityLabel={
         seekable
-          ? `Note at ${formatTimestamp(note.timestampSec ?? 0)}: ${note.body}. Jump to this moment.`
+          ? `Note at ${stamp ?? formatTimestamp(note.timestampSec ?? 0)}: ${note.body}. Jump to this moment.`
           : `Note: ${note.body}`
       }
       onPress={() => {
@@ -37,9 +38,9 @@ export function NoteRow({ note, onSeek, onEdit }: NoteRowProps) {
       testID={`note-${note.id}`}
     >
       <View style={styles.stampColumn}>
-        {note.timestampSec !== null ? (
-          <Text variant="caption" tone="brand">
-            {formatTimestamp(note.timestampSec)}
+        {stamp ? (
+          <Text variant="caption" tone="brand" numberOfLines={2}>
+            {stamp}
           </Text>
         ) : (
           <Text variant="caption" tone="iconDecorative">
@@ -52,6 +53,16 @@ export function NoteRow({ note, onSeek, onEdit }: NoteRowProps) {
       </Text>
     </Pressable>
   );
+}
+
+function stampFor(note: Note): string | null {
+  if (note.anchor?.kind === 'highlight' || note.anchor?.kind === 'paragraph') {
+    const index = note.anchor.start ?? note.timestampSec;
+    return index !== undefined && index !== null ? `¶${index + 1}` : '¶';
+  }
+  if (note.timestampSec !== null) return formatTimestamp(note.timestampSec);
+
+  return null;
 }
 
 const styles = StyleSheet.create({

@@ -13,3 +13,7 @@ jest.mock('expo-updates', () => ({
   fetchUpdateAsync: jest.fn(),
   reloadAsync: jest.fn(),
 }));
+
+jest.mock('react-native-webview', () => ({
+  WebView: 'WebView',
+}));

@@ -18,7 +18,7 @@ export function withResourceCache(
     name: `cached(${provider.name})`,
 
     async search(query: ResourceQuery) {
-      const key = resourceCacheKey(query.text, query.language);
+      const key = resourceCacheKey(query.text, query.language, query.format ?? 'video');
       const cached = await cache.find(key);
 
       if (cached && Date.now() - cached.cachedAt < ttlMs) {

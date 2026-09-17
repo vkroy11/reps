@@ -1,6 +1,6 @@
 import type { AiProvider } from '../providers/ai';
 import type { GoogleVerifier } from '../providers/auth/types';
-import type { ResourceProvider } from '../providers/resources';
+import type { ArticleProvider, ResourceProvider } from '../providers/resources';
 import type { Repositories } from '../repositories/types';
 import { createAuthService, type AuthService } from './auth.service';
 import { createContentService, type ContentService } from './content.service';
@@ -24,10 +24,15 @@ export interface Services {
 export function createServices(deps: {
   ai: AiProvider;
   resources: ResourceProvider;
+  articles?: ArticleProvider;
   google: GoogleVerifier;
   repositories: Repositories;
 }): Services {
-  const curator = createResourceCurator({ ai: deps.ai, resources: deps.resources });
+  const curator = createResourceCurator({
+    ai: deps.ai,
+    resources: deps.resources,
+    articles: deps.articles,
+  });
 
   const paths = createPathService({
     ai: deps.ai,

@@ -66,8 +66,15 @@ export function createFakeAiProvider(): AiProvider {
     },
 
     async rankResources(input) {
+      const video = input.candidates.find((candidate) => candidate.format === 'video');
+      const article = input.candidates.find((candidate) => candidate.format === 'article');
+      const mixed = [video, article].filter(
+        (candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate),
+      );
+      const picks = mixed.length > 0 ? mixed : input.candidates.slice(0, 2);
+
       return {
-        selections: input.candidates.slice(0, 2).map((candidate) => ({
+        selections: picks.map((candidate) => ({
           candidateId: candidate.id,
           reason: 'Chosen by the fake provider, which always takes the first candidates.',
         })),

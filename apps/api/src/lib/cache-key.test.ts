@@ -27,4 +27,10 @@ describe('resourceCacheKey', () => {
       resourceCacheKey('advanced fingerpicking patterns', 'en'),
     );
   });
+
+  it('separates a video search from an article search of the same query', () => {
+    expect(resourceCacheKey('beginner guitar chords', 'en', 'video')).not.toBe(
+      resourceCacheKey('beginner guitar chords', 'en', 'article'),
+    );
+  });
 });

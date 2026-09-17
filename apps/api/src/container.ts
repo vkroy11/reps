@@ -1,6 +1,10 @@
 import { createAiProvider, type AiProvider } from './providers/ai';
 import { createAuthProvider, type GoogleVerifier } from './providers/auth';
-import { createResourceProvider, type ResourceProvider } from './providers/resources';
+import {
+  createResourceProvider,
+  type ArticleProvider,
+  type ResourceProvider,
+} from './providers/resources';
 import { createRepositories } from './repositories';
 import type { Repositories } from './repositories/types';
 import { createServices, type Services } from './services';
@@ -19,16 +23,28 @@ export function createContainer(
     repositories?: Repositories;
     ai?: AiProvider;
     resources?: ResourceProvider;
+    articles?: ArticleProvider;
     google?: GoogleVerifier;
   } = {},
 ): Container {
   const repositories = overrides.repositories ?? createRepositories();
   const ai = overrides.ai ?? createAiProvider();
-  const resources = overrides.resources ?? createResourceProvider(repositories);
+  const sourced =
+    overrides.resources && overrides.articles
+      ? { resources: overrides.resources, articles: overrides.articles }
+      : overrides.resources
+        ? { resources: overrides.resources, articles: undefined }
+        : createResourceProvider(repositories);
   const google = overrides.google ?? createAuthProvider();
 
   return {
     repositories,
-    services: createServices({ ai, resources, google, repositories }),
+    services: createServices({
+      ai,
+      resources: sourced.resources,
+      articles: sourced.articles ?? overrides.articles,
+      google,
+      repositories,
+    }),
   };
 }
