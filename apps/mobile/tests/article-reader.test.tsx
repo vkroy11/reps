@@ -56,4 +56,20 @@ describe('LearnPanel', () => {
 
     expect(getByTestId('open-original')).toBeOnTheScreen();
   });
+
+  it('renders bold and a python snippet instead of raw asterisks', async () => {
+    const rich: Resource = {
+      ...ARTICLE,
+      body: 'See **Edit Distance**.\n\npython\ndp = [[0]*(m+1) for _ in range(n+1)]\nfor i in range(1, n+1):\n    dp[i][0] = i\n',
+    };
+
+    const { getByText, getByTestId, queryByText } = await renderScreen(
+      <LearnPanel resources={[rich]} onAddNote={jest.fn()} jumpTo={null} />,
+    );
+
+    expect(getByText('Edit Distance')).toBeOnTheScreen();
+    expect(queryByText('**Edit Distance**')).toBeNull();
+    expect(getByTestId('article-code')).toBeOnTheScreen();
+    expect(getByText(/dp = \[\[0\]/)).toBeOnTheScreen();
+  });
 });

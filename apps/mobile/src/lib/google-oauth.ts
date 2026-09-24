@@ -26,13 +26,21 @@ function configured(): OAuthConfig {
   return extra?.googleOAuth ?? {};
 }
 
+export function googleOAuthIds(): OAuthConfig {
+  return configured();
+}
+
 /** The client id this platform should authenticate with, if there is one. */
 export function googleClientId(): string | null {
   const ids = configured();
   const forPlatform =
     Platform.OS === 'ios' ? ids.ios : Platform.OS === 'android' ? ids.android : ids.web;
 
-  return forPlatform && forPlatform.length > 0 ? forPlatform : null;
+  if (forPlatform && forPlatform.length > 0) return forPlatform;
+
+  // An empty iOS slot must not hide sign-in on first launch when a web client
+  // exists. Expo can complete the flow with the web id on native.
+  return ids.web && ids.web.length > 0 ? ids.web : null;
 }
 
 /**

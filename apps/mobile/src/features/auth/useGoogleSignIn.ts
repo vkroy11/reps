@@ -3,7 +3,7 @@ import * as Google from 'expo-auth-session/providers/google';
 import Constants from 'expo-constants';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import { googleClientId } from '../../lib/google-oauth';
+import { googleClientId, googleOAuthIds } from '../../lib/google-oauth';
 import { useApp } from '../../providers/app-provider';
 
 export type SignInStatus =
@@ -60,8 +60,14 @@ export function useGoogleSignIn(): {
     clientId === null ? { state: 'unconfigured' } : { state: 'idle' },
   );
 
+  const ids = googleOAuthIds();
+  const nonempty = (value?: string) => (value && value.length > 0 ? value : undefined);
+
   const [, response, promptAsync] = Google.useIdTokenAuthRequest({
     clientId: clientId ?? undefined,
+    iosClientId: nonempty(ids.ios),
+    androidClientId: nonempty(ids.android),
+    webClientId: nonempty(ids.web),
     redirectUri: nativeRedirectUri(),
   });
 

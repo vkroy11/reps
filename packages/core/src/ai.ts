@@ -58,7 +58,7 @@ export const LessonContentSchema = z.object({
   format: z.literal('ai_lesson'),
   title: z.string().min(3).max(120),
   /** Markdown. Short by design - this is a micro-lesson, not an article. */
-  body: z.string().min(50).max(4000),
+  body: z.string().min(50).max(6000),
   keyPoints: z.array(z.string().min(3).max(200)).min(2).max(5),
 });
 

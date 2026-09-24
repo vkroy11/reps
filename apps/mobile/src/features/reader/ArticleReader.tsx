@@ -2,7 +2,8 @@ import type { NoteAnchor } from '@reps/core';
 import { Button, Text, color, radius, space } from '@reps/ui';
 import { useEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { paragraphsOf } from './paragraphs';
+import { blocksOf, type ArticleBlock } from './blocks';
+import { MarkdownBlock, plainText } from './MarkdownBlock';
 
 export interface ArticleReaderProps {
   title: string;
@@ -18,8 +19,8 @@ export interface ArticleReaderProps {
 }
 
 /**
- * The native article. Paragraphs are the unit of selection so a note can point
- * at a place in the text the same way a timestamp points at a place in a video.
+ * The native article. Each block is tappable so a note can point at a place
+ * in the lesson the same way a timestamp points at a place in a video.
  */
 export function ArticleReader({
   title,
@@ -32,7 +33,7 @@ export function ArticleReader({
   onOpenOriginal,
   jumpTo,
 }: ArticleReaderProps) {
-  const paragraphs = paragraphsOf(body);
+  const blocks = blocksOf(body);
   const scrollRef = useRef<ScrollView>(null);
   const yByIndex = useRef<Record<number, number>>({});
 
@@ -42,6 +43,8 @@ export function ArticleReader({
     if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, y - 24), animated: true });
   }, [jumpTo]);
 
+  const selected = selectedIndex !== null ? (blocks[selectedIndex] ?? null) : null;
+
   return (
     <View style={styles.wrap}>
       <Text variant="heading">{title}</Text>
@@ -49,7 +52,7 @@ export function ArticleReader({
         {source}
       </Text>
 
-      {paragraphs.length === 0 ? (
+      {blocks.length === 0 ? (
         <Text variant="body" tone="textSecondary" style={styles.empty}>
           The extracted text did not come through. The original page is still available.
         </Text>
@@ -60,40 +63,40 @@ export function ArticleReader({
           contentContainerStyle={styles.scrollContent}
           nestedScrollEnabled
         >
-          {paragraphs.map((paragraph, index) => {
-            const selected = selectedIndex === index;
+          {blocks.map((block, index) => {
+            const isSelected = selectedIndex === index;
 
             return (
               <Pressable
-                key={`${index}-${paragraph.slice(0, 24)}`}
-                onPress={() => onSelect(selected ? null : index)}
+                key={`${index}-${quoteFrom(block).slice(0, 24)}`}
+                onPress={() => onSelect(isSelected ? null : index)}
                 onLayout={(event) => {
                   yByIndex.current[index] = event.nativeEvent.layout.y;
                 }}
                 accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={`Paragraph ${index + 1}. ${selected ? 'Selected.' : 'Tap to highlight.'}`}
+                accessibilityState={{ selected: isSelected }}
+                accessibilityLabel={`Paragraph ${index + 1}. ${isSelected ? 'Selected.' : 'Tap to highlight.'}`}
                 testID={`article-p-${index}`}
-                style={[styles.paragraph, selected && styles.paragraphSelected]}
+                style={[styles.paragraph, isSelected && styles.paragraphSelected]}
               >
-                <Text variant="body">{paragraph}</Text>
+                <MarkdownBlock block={block} />
               </Pressable>
             );
           })}
         </ScrollView>
       )}
 
-      {selectedIndex !== null && paragraphs[selectedIndex] ? (
+      {selected ? (
         <Button
           label="Note this paragraph"
           variant="secondary"
           onPress={() =>
             onAddNote({
-              timestampSec: selectedIndex,
+              timestampSec: selectedIndex ?? 0,
               anchor: {
                 kind: 'highlight',
-                start: selectedIndex,
-                quote: paragraphs[selectedIndex]!.slice(0, 500),
+                start: selectedIndex ?? 0,
+                quote: plainText(quoteFrom(selected)).slice(0, 500),
               },
             })
           }
@@ -113,11 +116,18 @@ export function ArticleReader({
   );
 }
 
+function quoteFrom(block: ArticleBlock): string {
+  if (block.type === 'text' || block.type === 'heading') return block.markdown;
+  if (block.type === 'code') return block.code;
+  if (block.type === 'diagram') return block.source;
+  return block.alt || block.url;
+}
+
 const styles = StyleSheet.create({
   wrap: { gap: space.sm },
   source: { marginBottom: space.xs },
   empty: { marginVertical: space.md },
-  scroll: { maxHeight: 420 },
+  scroll: { maxHeight: 560 },
   scrollContent: { gap: space.sm, paddingBottom: space.sm },
   paragraph: {
     padding: space.md,

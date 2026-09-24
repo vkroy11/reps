@@ -77,7 +77,7 @@ export default function WelcomeScreen() {
           group who needs it, somebody with an account and a new device, could
           not reach it without first building a hobby they did not want.
         */}
-        <SignInPrompt />
+        <SignInPrompt placement="welcome" />
 
         {__DEV__ ? (
           <Link href="/gallery" style={styles.devLink}>

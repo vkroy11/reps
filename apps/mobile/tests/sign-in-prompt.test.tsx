@@ -54,6 +54,14 @@ describe('SignInPrompt', () => {
     expect(getByText(/works fully without an account/)).toBeOnTheScreen();
   });
 
+  it('on first launch, offers sign-in as a way in next to starting a skill', async () => {
+    const { getByText, getByTestId } = await renderScreen(<SignInPrompt placement="welcome" />);
+
+    expect(getByTestId('signin-prompt')).toBeOnTheScreen();
+    expect(getByText('Already have an account?')).toBeOnTheScreen();
+    expect(getByText(/start a skill without one/)).toBeOnTheScreen();
+  });
+
   it('starts the flow when tapped', async () => {
     const { getByTestId } = await renderScreen(<SignInPrompt />);
 
@@ -84,12 +92,12 @@ describe('SignInPrompt', () => {
       expect(queryByTestId('signin-prompt')).toBeNull();
     });
 
-    it('says nothing while availability is unknown', async () => {
+    it('still offers sign-in while the server is being asked, so first launch is not blank', async () => {
       mockAvailable = null;
 
-      const { queryByTestId } = await renderScreen(<SignInPrompt />);
+      const { getByTestId } = await renderScreen(<SignInPrompt />);
 
-      expect(queryByTestId('signin-prompt')).toBeNull();
+      expect(getByTestId('signin-prompt')).toBeOnTheScreen();
     });
 
     it('says nothing when the server cannot complete a sign-in', async () => {

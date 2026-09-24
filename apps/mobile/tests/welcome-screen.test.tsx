@@ -25,9 +25,24 @@ jest.mock('../src/providers/app-provider', () => ({
     onboarded: mockOnboarded,
     clearDraft: mockClearDraft,
     api: null,
+    session: null,
     patchDraft: jest.fn(),
     loadSuggestions: jest.fn(),
   }),
+}));
+
+jest.mock('../src/lib/google-oauth', () => ({
+  googleSignInConfigured: () => true,
+  googleClientId: () => 'client-id.apps.googleusercontent.com',
+  googleOAuthIds: () => ({ web: 'web-id', ios: '', android: 'android-id' }),
+}));
+
+jest.mock('../src/features/auth/useAuthAvailable', () => ({
+  useAuthAvailable: () => true,
+}));
+
+jest.mock('../src/features/auth/useGoogleSignIn', () => ({
+  useGoogleSignIn: () => ({ status: { state: 'idle' }, signIn: jest.fn(), reset: jest.fn() }),
 }));
 
 describe('WelcomeScreen', () => {
@@ -39,10 +54,11 @@ describe('WelcomeScreen', () => {
     mockOnboarded = false;
   });
 
-  it('offers a single way in when there is nothing saved', async () => {
+  it('offers a skill or a Google sign-in when there is nothing saved', async () => {
     const { getByTestId, queryByTestId } = await renderScreen(<WelcomeScreen />);
 
     expect(getByTestId('get-started')).toBeOnTheScreen();
+    expect(getByTestId('signin-prompt')).toBeOnTheScreen();
     expect(queryByTestId('resume')).toBeNull();
   });
 

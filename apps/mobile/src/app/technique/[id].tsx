@@ -12,6 +12,8 @@ import { NoteComposer } from '../../features/notes/NoteComposer';
 import { NoteRow } from '../../features/notes/NoteRow';
 import { useTechniqueNotes } from '../../features/notes/useNotes';
 import { LearnPanel } from '../../features/reader/LearnPanel';
+import { blocksOf } from '../../features/reader/blocks';
+import { MarkdownBlock } from '../../features/reader/MarkdownBlock';
 import { useTechnique, useTechniqueContent } from '../../features/techniques/useTechnique';
 
 /**
@@ -432,9 +434,13 @@ function GeneratedContent({ content }: { content: TechniqueContent }) {
   return (
     <Card>
       <Text variant="heading">{content.title}</Text>
-      <Text variant="body" style={styles.gap}>
-        {content.body}
-      </Text>
+      <View style={styles.gap}>
+        {blocksOf(content.body).map((block, index) => (
+          <View key={`${block.type}-${index}`} style={styles.lessonBlock}>
+            <MarkdownBlock block={block} />
+          </View>
+        ))}
+      </View>
       {content.keyPoints.map((point) => (
         <Text key={point} variant="caption" tone="textSecondary" style={styles.point}>
           • {point}
@@ -492,5 +498,6 @@ const styles = StyleSheet.create({
     backgroundColor: color.progressSoft,
   },
   point: { marginTop: space.xs },
+  lessonBlock: { marginTop: space.sm },
   soon: { marginTop: space.lg },
 });

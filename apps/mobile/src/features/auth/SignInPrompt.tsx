@@ -5,21 +5,23 @@ import { useApp } from '../../providers/app-provider';
 import { useAuthAvailable } from './useAuthAvailable';
 import { useGoogleSignIn } from './useGoogleSignIn';
 
+export interface SignInPromptProps {
+  /**
+   * Welcome is a first-run choice (sign in or start a skill). Empty is the
+   * returning-learner footnote on Today.
+   */
+  placement?: 'welcome' | 'empty';
+}
+
 /**
- * Sign-in for somebody who already has an account and nothing on this device.
+ * Sign in with Google, next to "start a skill" rather than behind it.
  *
- * The empty screen was a dead end for returning learners: the only thing on it
- * was "start a hobby", so the way to reach paths you already had was to build
- * a new one first, or to know that the Me tab existed. This is not a second
- * front door - the account is still optional and nothing is gated behind it -
- * it just stops the empty state from being wrong for the one group of people
- * most likely to be looking at it.
- *
- * Deliberately secondary. It sits below the primary action, in a ghost button,
- * and says outright that it is optional. A prominent sign-in on a first run
- * reads as a wall, and this app does not have one.
+ * Shown whenever this build has a client id and the learner is not already
+ * signed in. Waiting on the API to confirm used to hide the button on first
+ * launch (and whenever Render was asleep), which is how a new device had no
+ * way to log in.
  */
-export function SignInPrompt() {
+export function SignInPrompt({ placement = 'empty' }: SignInPromptProps) {
   /*
     Before any hook, deliberately. `useIdTokenAuthRequest` throws when the
     platform has no client id, so this cannot be checked inside the component
@@ -28,32 +30,33 @@ export function SignInPrompt() {
   */
   if (!googleSignInConfigured()) return null;
 
-  return <ConfiguredSignInPrompt />;
+  return <ConfiguredSignInPrompt placement={placement} />;
 }
 
-function ConfiguredSignInPrompt() {
+function ConfiguredSignInPrompt({ placement }: { placement: 'welcome' | 'empty' }) {
   const { session } = useApp();
   const available = useAuthAvailable();
   const { status, signIn } = useGoogleSignIn();
 
-  // Already signed in, so an empty screen means an empty account - offering
-  // sign-in again would be nonsense.
   if (session) return null;
-  // Unknown, or unsupported by the server: say nothing rather than offer a
-  // button that cannot finish.
-  if (available !== true) return null;
+  // Server has said it cannot finish a sign-in. Stay quiet rather than offer
+  // a button that 503s. Unknown (still loading, or the API is waking) still
+  // shows — first launch must not wait on that.
+  if (available === false) return null;
+
+  const welcome = placement === 'welcome';
 
   return (
     <View style={styles.block} testID="signin-prompt">
-      <View style={styles.rule} />
+      {welcome ? null : <View style={styles.rule} />}
 
       <Text variant="caption" tone="textSecondary" center>
-        Already used Reps somewhere else?
+        {welcome ? 'Already have an account?' : 'Already used Reps somewhere else?'}
       </Text>
 
       <Button
         label={status.state === 'working' ? 'Signing in…' : 'Sign in with Google'}
-        variant="secondary"
+        variant={welcome ? 'secondary' : 'secondary'}
         onPress={signIn}
         disabled={status.state === 'working'}
         style={styles.action}
@@ -66,8 +69,9 @@ function ConfiguredSignInPrompt() {
         </Text>
       ) : (
         <Text variant="caption" tone="textSecondary" center style={styles.optional}>
-          Completely optional. Reps works fully without an account — this only brings paths you
-          already have onto this device.
+          {welcome
+            ? 'Or start a skill without one. Sign-in is optional — it only brings paths you already have onto this device.'
+            : 'Completely optional. Reps works fully without an account — this only brings paths you already have onto this device.'}
         </Text>
       )}
     </View>
@@ -76,7 +80,6 @@ function ConfiguredSignInPrompt() {
 
 const styles = StyleSheet.create({
   block: { alignSelf: 'stretch', alignItems: 'center', gap: space.sm, marginTop: space.lg },
-  /* A rule rather than a card: this is a footnote to the action above it. */
   rule: {
     height: 1,
     alignSelf: 'stretch',
@@ -84,5 +87,5 @@ const styles = StyleSheet.create({
     marginBottom: space.base,
   },
   action: { alignSelf: 'stretch' },
-  optional: { maxWidth: 300 },
+  optional: { maxWidth: 320 },
 });

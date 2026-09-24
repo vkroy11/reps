@@ -1,6 +1,6 @@
 import type { ResourceCandidate } from '@reps/core';
 import { ProviderUnavailableError } from '../../lib/errors';
-import { fetchJson, fetchText, htmlToBody } from './extract';
+import { fetchJson, fetchText, htmlToBody, htmlToMarkdown } from './extract';
 import type { ResourceProvider, ResourceQuery } from './types';
 
 interface MediaWikiSearchResponse {
@@ -142,6 +142,10 @@ export function createArticleProvider(): ResourceProvider & {
       if (wikipedia) {
         const host = `${wikipedia[1]}.wikipedia.org`;
         const title = decodeURIComponent((wikipedia[2] ?? '').replace(/_/g, ' '));
+        const parsed = await parseMediaWiki(`https://${host}/w/api.php`, title, `https://${host}/`);
+        if (parsed) return parsed;
+
+        // HTML parse can fail on odd titles; plain extract is better than nothing.
         const endpoint = new URL(`https://${host}/w/api.php`);
         endpoint.searchParams.set('action', 'query');
         endpoint.searchParams.set('prop', 'extracts');
@@ -164,28 +168,14 @@ export function createArticleProvider(): ResourceProvider & {
       if (wikihow) {
         const host = wikihow[1] ? `${wikihow[1]}wikihow.com` : 'www.wikihow.com';
         const title = decodeURIComponent((wikihow[2] ?? '').replace(/-/g, ' '));
-        const endpoint = new URL(`https://${host}/api.php`);
-        endpoint.searchParams.set('action', 'parse');
-        endpoint.searchParams.set('page', title);
-        endpoint.searchParams.set('prop', 'text');
-        endpoint.searchParams.set('format', 'json');
-        endpoint.searchParams.set('origin', '*');
-        endpoint.searchParams.set('redirects', '1');
-
-        const body = await fetchJson<WikiHowParseResponse>(endpoint.toString());
-        const raw = body?.parse?.text;
-        const html = typeof raw === 'string' ? raw : raw?.['*'];
-        if (!html) return null;
-        const text = htmlToBody(html);
-        if (text.length < 80) return null;
-
-        return { title: body?.parse?.title ?? title, body: text };
+        const parsed = await parseMediaWiki(`https://${host}/api.php`, title, `https://${host}/`);
+        if (parsed) return parsed;
       }
 
       const html = await fetchText(url);
       if (!html) return null;
       const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html);
-      const text = htmlToBody(html);
+      const text = htmlToMarkdown(html, url);
       if (text.length < 80) return null;
 
       return {
@@ -194,6 +184,30 @@ export function createArticleProvider(): ResourceProvider & {
       };
     },
   };
+}
+
+async function parseMediaWiki(
+  api: string,
+  title: string,
+  baseUrl: string,
+): Promise<{ title: string; body: string } | null> {
+  const endpoint = new URL(api);
+  endpoint.searchParams.set('action', 'parse');
+  endpoint.searchParams.set('page', title);
+  endpoint.searchParams.set('prop', 'text');
+  endpoint.searchParams.set('format', 'json');
+  endpoint.searchParams.set('origin', '*');
+  endpoint.searchParams.set('redirects', '1');
+  endpoint.searchParams.set('disableeditsection', '1');
+
+  const body = await fetchJson<WikiHowParseResponse>(endpoint.toString());
+  const raw = body?.parse?.text;
+  const html = typeof raw === 'string' ? raw : raw?.['*'];
+  if (!html) return null;
+  const text = htmlToMarkdown(html, baseUrl);
+  if (text.length < 80) return null;
+
+  return { title: body?.parse?.title ?? title, body: text };
 }
 
 export type ArticleProvider = ReturnType<typeof createArticleProvider>;
